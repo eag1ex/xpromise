@@ -2,16 +2,19 @@
 ##### Name: XPromise
 * License: `CC BY` 
 
+
 #### Description
 Cleaver Javascript Promise, similar to Q/defer, uses proto getter/setter with dynamic callback to send resolve states
-- inteligent processing feature, ignore promise with rejection if alraedy being set elsewhere
+- Inteligent processing feature, ignore promise with rejection if alraedy being set elsewhere
 - Grouping promises as `ralative` to main `job` and resolving once as part of main promise
+- Part of 1 scope, easy to maintain all promises!
+
 
 #### Methods
 * `p(uid)`: Set new promise with its uniq ref/id
 * `set(uid)` : Reset previously set promise again
-* `resolve(uid)`: will set as ready to be resolved with `onReady` or `asPromise().then(..)`
-* `reject(uid)`: same as resolve but will return as rejected value
+* `resolve(uid, data)`: will set as ready to be resolved with `onReady` or `asPromise().then(..)`, `data` is optional,  when not set will return `true`
+* `reject(uid, data)`: same as `resolve` but return as rejected value, `data` is optional, when not set will return `false`
 * `ref(uid)` : will set uid/ref so dont have to repeat typing your uid
 * `onReady(done=>,err=>)` will return ready data in callback
 * `asPromise(uid)`: will return as promise: asPromise().then(d=>...)
@@ -22,6 +25,7 @@ Cleaver Javascript Promise, similar to Q/defer, uses proto getter/setter with dy
 
 ##### Stack
  - Lodash, ES6, javascript, Node.js
+
 
 ##### Usage/Examples
 - Examples in `./index.js`
