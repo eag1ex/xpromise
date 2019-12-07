@@ -3,8 +3,11 @@
 * License: `CC BY` 
 
 #### Description
-Cleaver promise, similar to Q/defer, uses proto getter/setter with dynamic callback to send resolve state
-- inteligent processing feature, will ignore promise with rejection if alraedy being resolved elsewhere
+Cleaver Javascript Promise, similar to Q/defer, uses proto getter/setter with dynamic callback to send resolve states
+- inteligent processing feature, ignore promise with rejection if alraedy being set elsewhere
+- Grouping promises as `ralative` to main `job` and resolving once as part of main promise
+
+#### Methods
 * `p(uid)`: Set new promise with its uniq ref/id
 * `set(uid)` : Reset previously set promise again
 * `resolve(uid)`: will set as ready to be resolved with `onReady` or `asPromise().then(..)`
@@ -18,11 +21,13 @@ Cleaver promise, similar to Q/defer, uses proto getter/setter with dynamic callb
 
 
 ##### Stack
- - Lodash, ES6, javascript, node.js
+ - Lodash, ES6, javascript, Node.js
 
-##### Usage
+##### Usage/Examples
 - Examples in `./index.js`
-
+```
+// 
+```
 
 ##### Features:
 * This application supports chaining
