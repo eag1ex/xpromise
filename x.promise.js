@@ -1,17 +1,54 @@
 
 /**
+  * example 1
+  * var xp = new XPromise()
+  * xp.p('123')
+  * setTimeout(() => {
+      xp.p().resolve()
+  }, 2000);
+     xp.p().then(()=>)
+  */
+
+/**
+  * example 2
+  * const uid = '123'
+  * var xp = new XPromise(uid)
+  * xp.p('123')
+  * setTimeout(() => {
+      xp.p().resolve(uid,{data})
+  }, 2000);
+     xp.p().then(()=>)
+  */
+
+/**
  * @XPromise
-*/
+ * cleaver promise, similar to Q/defer, uses proto getter/setter with dynamic callback to send resolve state
+ *  - inteligent processing feature, will ignore promise with rejection, that is alraedy being resolved somewhere else
+ * `p(uid)`: Set new promise with its uniq ref/id
+ * `consume(uid,customPromise)`: provide external promise to be included in the framework
+ * `xp` : a variable sorthand of `p()`, can use if if last uid already set
+ * `set(uid)` : Reset previously set promise again
+ * `resolve(uid)`: will set as ready to be resolved with `onReady` or `asPromise().then(..)`
+ * `reject(uid)`: same as resolve but will return as rejected value
+ * `ref(uid)` : will set uid/ref so dont have to repeat typing your uid
+ * `onReady(done=>,err=>)` will return ready data in callback
+ * `asPromise(uid)`: will return as promise: asPromise().then(d=>...)
+ * `all`: a variable will return all current promises, so you can assign it to Promise.all(all)...
+ * `pending`: a variable return index of currently active promises
+ * `exists(uid)` : check if uid/ref exists, if promise exists!
+ * `pipe(cb,uid)` : when `callback` set will chain with last consumed promise, then no `callback` set will pipe as promise with .then
+ */
 module.exports = (notify) => {
-    if (!notify) notify = require('./notifications')()
-    const { isEmpty, isArray, isObject, isString, isNumber, times, isFunction } = require('lodash')
+    if (!notify) notify = require('./libs/notifications')()
+    const { isEmpty, isArray, isObject, isString, isNumber, times, isFunction, cloneDeep } = require('lodash')
     class XPromise {
-        constructor(promiseUID, debug) {
+        constructor(promiseUID, opts, debug) {
             // if set initiate promise right away
             if (isString(promiseUID)) {
                 this.p(promiseUID)
             }
-
+            this.showRejects = opts.showRejects || null // print reject messages to the console
+            this.allowPipe = opts.allowPipe || null //  you can pipe thru each promise after it was consumed with `asPromise` or `onReady`
             this.debug = debug
             this.promiseCBList = {}
             this.xpromise = {}
@@ -25,35 +62,62 @@ module.exports = (notify) => {
             var uid1 = '1233535'
             var uid1a = '1233535--1'
             var uid1b = '1233535--2'
-            this.p(uid1)
-            this.p(uid1a)
-            this.p(uid1b)
-            setTimeout(() => {
-                this.resolve(uid1, 'abc')
-                this.resolve(uid1a, 'abc')
-                this.resolve(uid1b, 'abc')
-            }, 2000)
 
-            // this.ref(uid1).onReady(z => {
-            //     console.log('onReady', z)
+            // consume example
+            var cp = Promise.resolve('custom promise')
+            // this.resolve(uid1, 'abc')
+            // this.resolve(uid1a, 'abc')
+            this.resolve(uid1b, 'abc')
+            this.consume(uid1, cp)
+
+            // this.p(uid1)
+            // this.p(uid1a)
+            // this.p(uid1b)
+            setTimeout(() => {
+                this.asPromise(uid1).then(d => {
+                    console.log(' uid1 asPromise', d)
+                }, err => {
+                    console.log('err', err)
+                })
+            }, 5000)
+
+            this.ref(uid1).pipe().then(v => {
+                console.log('pipe', v)
+                notify.ulog(this.ps)
+            })
+            //  setTimeout(() => {
+
+            //  }, 200)
+
+            // this.ref(uid1a).onReady(z => {
+            //     console.log('uid1a onReady', z)
             // }, err => {
             //     console.log('err', err)
             // })
-            this.ref(uid1).asPromise().then(d => {
-                console.log('asPromise', d)
-                console.log('ps', this.ps)
-            }, err => {
-                console.log('err', err)
-            })
 
-            // this will be ignored
-            setTimeout(() => {
-                this.ref(uid1).asPromise().then(d => {
-                    console.log('asPromise 2', d)
-                }, err => {
-                    console.log('asPromise 2 err', err)
-                })
-            }, 100)
+            // setTimeout(() => {
+            //     this.ref(uid1).onReady(z => {
+            //         console.log('uid1 onReady', z)
+            //     }, err => {
+            //         console.log('err', err)
+            //     })
+            // }, 4000)
+
+            // this.ref(uid1).asPromise().then(d => {
+            //     console.log('asPromise', d)
+            //     console.log('ps', this.ps)
+            // }, err => {
+            //     console.log('err', err)
+            // })
+
+            // // this will be ignored
+            // setTimeout(() => {
+            //     this.ref(uid1).asPromise().then(d => {
+            //         console.log('asPromise 2', d)
+            //     }, err => {
+            //         console.log('asPromise 2 err', err)
+            //     })
+            // }, 100)
 
             // console.log('pending', this.p().pending())
             // Promise.all(this.all()).then(d => {
@@ -74,12 +138,11 @@ module.exports = (notify) => {
 
             // test for any relative promise that exist
             var relIndex = 0
-            if (relative) {
-                uid = uid.split('--')[0]
+            if (relative && uid.indexOf(this.relSufix) === -1) {
                 this.testUID(uid)
 
                 for (var k in this.ps) {
-                    if (k.indexOf(uid) !== -1 && k.indexOf(`--`) !== -1) {
+                    if (k.indexOf(uid) !== -1 && k.indexOf(this.relSufix) !== -1) {
                         relIndex++
                         break // exit quickly if any matched
                     }
@@ -87,7 +150,7 @@ module.exports = (notify) => {
 
                 if (relIndex) return true
                 else if (this.ps[uid]) return true
-            } else if (this.ps[uid] && !relative) return true
+            } else if ((this.ps[uid] && !relative) || this.ps[uid]) return true
             return false
         }
 
@@ -127,6 +190,28 @@ module.exports = (notify) => {
         }
 
         /**
+         * @consume
+         * combine external promise with Xpromise
+         * `extPromise` unresolve provide external promise
+         */
+        consume(uid, extPromise) {
+            uid = this._getLastRef(uid)
+            if (!this.isPromise(extPromise)) {
+                if (this.debug) notify.ulog(`[consume] external promise is not valid to include with XPromise framework`, true)
+                return this
+            }
+
+            if (!this.ps[uid]) {
+                this.ps[uid] = {}
+                this.ps[uid].consume = extPromise
+                this.ps = Object.assign({}, this.ps)
+            } else {
+
+            }
+            return this
+        }
+
+        /**
          * @pending
          * return remaining promises
          */
@@ -158,7 +243,7 @@ module.exports = (notify) => {
             uid = this._getLastRef(uid)
 
             // when setting force to delete any existing promises
-            this.delete(uid)
+            this.delete(uid, true)
 
             this.ps[uid] = 'set'
             this.ps = Object.assign({}, this.ps)
@@ -174,8 +259,9 @@ module.exports = (notify) => {
             uid = this._getLastRef(uid)
 
             if (!this.ps[uid]) {
-                if (this.debug) notify.ulog(`[reject] promise uid: ${uid} does not exist`, true)
-                return this
+                if (this.debug) notify.ulog(`[reject] uid: ${uid} does not exist, setting as new!`)
+                this.set(uid)
+                // return this
             }
 
             if (!this.validPromise(this.ps[uid])) {
@@ -203,8 +289,9 @@ module.exports = (notify) => {
             uid = this._getLastRef(uid)
 
             if (!this.ps[uid]) {
-                if (this.debug) notify.ulog(`[resolve] promise uid: ${uid}  does not exist`, true)
-                return this
+                if (this.debug) notify.ulog(`[resolve] uid: ${uid} does not exist, setting as new!`)
+                this.set(uid)
+                // return this
             }
 
             if (!this.validPromise(this.ps[uid])) {
@@ -233,18 +320,31 @@ module.exports = (notify) => {
             if (!this.exists(uid, true)) {
                 return Promise.reject(`[asPromise] uid ${uid} doesnt exist or already resolved and deleted`)
             }
+
+            if (this.isPipe(uid)) {
+                var msg = `[asPromise] uid ${uid} already consumed, can only access as pipe()`
+                return Promise.reject(msg)
+            }
+
             if (!this.processing(uid)) {
-                return Promise.reject(`[asPromise] uid ${uid} already processed once before`)
+                return Promise.reject(`[asPromise] uid ${uid} already processed once before, unless this uid is your relative base which you havent declared`, true)
             }
 
             var rel = this._resolveAllRelativeAS(uid)
             if (rel !== null) return rel
             else {
                 return this.ps[uid].p.then(z => {
-                    this.delete(uid)
+                    this.updateExternal(uid)
+                        .delete(uid, true)
+
                     return Promise.resolve(z)
                 }, err => {
-                    this.delete(uid)
+                    this.updateExternal(uid)
+                        .delete(uid, true)
+
+                    if (this.showRejects) {
+                        notify.ulog({ message: 'asPromise err', error: err }, true)
+                    }
                     return Promise.reject(err)
                 })
             }
@@ -268,6 +368,12 @@ module.exports = (notify) => {
                 return false
             }
 
+            if (this.isPipe(uid)) {
+                var msg = `[onReady] uid ${uid} already consumed, can only access as pipe()`
+                if (typeof errCB === 'function') errCB(msg)
+                return false
+            }
+
             if (!this.validPromise(this.ps[uid])) {
                 if (this.debug) notify.ulog(`[then] promise uid: ${uid} is invalid`, true)
                 var errMessage = `[then] promise uid: ${uid} is invalid`
@@ -286,16 +392,46 @@ module.exports = (notify) => {
             if (rel) return true
             else {
                 this.ps[uid].p.then((v) => {
-                    this.delete(uid)
+                    this.updateExternal(uid)
+                        .delete(uid, true)
+
                     if (typeof cb === 'function') cb(v)
                 }, err => {
-                    this.delete(uid)
+                    this.updateExternal(uid)
+                        .delete(uid, true)
+
                     if (typeof errCB === 'function') errCB(err)
+                    if (this.showRejects) {
+                        notify.ulog({ message: 'onReady err', error: err }, true)
+                    }
                 })
                 return this
             }
         }
 
+        pipe(cb, uid) {
+            uid = this._getLastRef(uid)
+
+            if (this.isPipe(this.ps[uid])) {
+                if (!this.isPromise(this.ps[uid].pipe)) {
+                    if (this.debug) notify.ulog(`[pipe] this uid ${uid} is not a promise so cannot pipe it`, true)
+                    return this
+                }
+                if (typeof cb === 'function') {
+                    this.ps[uid].pipe.then(z => {
+                        cb(z)
+                    }, err => {
+                        cb(err)
+                    })
+                    return this
+                } else {
+                    return this.ps[uid].pipe
+                }
+            } else {
+                if (this.debug) notify.ulog(`[pipe] this uid ${uid} is not a pipe`, true)
+            }
+            return this
+        }
         /**
          * @all
          * return all promises in an array, can be used with Promise.all([...])
@@ -306,6 +442,9 @@ module.exports = (notify) => {
             for (var k in this.ps) {
                 if (!this.ps.hasOwnProperty(k)) continue
                 var proms = (this.ps[k] || {}).p
+
+                if (this.isPipe(this.ps[k])) continue
+
                 if (!(this.ps[k] || {}).processing) {
                     this.ps[k].processing = true
                     updated = true
@@ -327,21 +466,37 @@ module.exports = (notify) => {
 
         _resolveAllRelativeAS(uid, cb = null, cbERR = null) {
             var rel = this._findRelativePromise(uid)
-            var hasCallbacks = isFunction(cb) || isFunction(cbERR)
+            // var hasCallbacks = isFunction(cb) || isFunction(cbERR)
             if (rel) {
                 var { relative, refs } = rel
                 // if has callback do not return promise
-                if (hasCallbacks) return true
                 return Promise.all(relative).then((d) => {
                     times(refs.length, i => {
-                        var del = this.delete(refs[i])
+                        var del = this.updateExternal(refs[i])
+                            .delete(refs[i], false)
                         // if (del) console.log('del', refs[i])
                     })
+                    this.updatePS(true)
                     if (typeof cb === 'function') cb(d)
                     else return Promise.resolve(d)
                 }, err => {
-                    if (typeof cbERR === 'function') cbERR(err)
-                    else return Promise.reject(err)
+                    times(refs.length, i => {
+                        var del = this.updateExternal(refs[i])
+                            .delete(refs[i], false)
+                        // if (del) console.log('del', refs[i])
+                    })
+                    this.updatePS(true)
+                    if (typeof cbERR === 'function') {
+                        cbERR(err)
+                        if (this.showRejects) {
+                            notify.ulog({ message: 'onReady err', error: err }, true)
+                        }
+                    } else {
+                        if (this.showRejects) {
+                            notify.ulog({ message: 'asPromise err', error: err }, true)
+                        }
+                        return Promise.reject(err)
+                    }
                 })
             } else {
                 return null
@@ -352,28 +507,30 @@ module.exports = (notify) => {
          * @_findRelativePromise
          * relative promise ends with sufix `--{index}`, means it belongs to one ref/uid and we need to only make one ready/all/asPromise call to compelte it
          */
-        _findRelativePromise(relUID) {
+        _findRelativePromise(uid) {
             // find relative uid/refs
-            var uid = relUID.split('--')[0]
             this.testUID(uid)
 
+            // do not find relative's with relative!
+            if (uid.indexOf(this.relSufix) !== -1) {
+                return null
+            }
             var relative = []
             var refs = []
             for (var k in this.ps) {
-                if (k.indexOf(uid) !== -1 && k.indexOf(`--`) !== -1) {
+                if (k.indexOf(uid) !== -1 && k.indexOf(this.relSufix) !== -1) {
                     if (this.validPromise(this.ps[k])) {
                         relative.push(this.ps[k].p)
-                        refs.push(k)
+                        refs.push(k) // also collect refs so we can dispose of all data by ref/uid
                     }
                 }
             }
 
-            // also collect refs so we can dispose of all data by ref/uid
             if (relative.length) {
-                // if provided `relUID` wasnt relative and without sufix `--{index}`, append it to end as well
-                if (relUID.indexOf('--') === -1 && this.validPromise(this.ps[relUID])) {
-                    relative = [].concat(relative, this.ps[relUID].p).filter(z => !!z)
-                    refs = [].concat(refs, relUID).filter(z => !!z)
+                // if provided wasnt relative and without sufix `--{index}`, append it to end as well
+                if (this.validPromise(this.ps[uid])) {
+                    relative = [].concat(relative, this.ps[uid].p).filter(z => !!z)
+                    refs = [].concat(refs, uid).filter(z => !!z)
                 }
                 return { relative, refs }
             } else return null
@@ -391,12 +548,19 @@ module.exports = (notify) => {
          * mark as processing=true  when calling with `asPromise`, `onReady`, `all` so future calls to resolve same promise will be ignored!
          */
         processing(uid) {
-            if (!this.ps[uid].processing) {
-                this.ps[uid].processing = true
-                this.relativeProcessing(uid)
-                this.ps = Object.assign({}, this.ps)
+            if (this.ps[uid]) {
+                if (!(this.ps[uid] || {}).processing) {
+                    this.ps[uid].processing = true
+                    this.relativeProcessing(uid)
+                    this.ps = Object.assign({}, this.ps)
+                }
+
                 return true
             } else return false
+        }
+
+        get relSufix() {
+            return `--`
         }
 
         /**
@@ -404,13 +568,14 @@ module.exports = (notify) => {
          * set relative for processing also
          */
         relativeProcessing(uid) {
-            var uid = uid.split('--')[0]
+            // process relative only when using base promise
+            if (uid.indexOf(this.relSufix) !== -1) return
 
             var updated = false
             for (var k in this.ps) {
-                if (k.indexOf(uid) !== -1 && k.indexOf(`--`) !== -1) {
+                if (k.indexOf(uid) !== -1 && k.indexOf(this.relSufix) !== -1) {
                     if (this.validPromise(this.ps[k])) {
-                        if (!this.ps[k].processing) {
+                        if (!(this.ps[k] || {}).processing) {
                             this.ps[k].processing = true
                             updated = true
                         }
@@ -446,12 +611,13 @@ module.exports = (notify) => {
                                 var newVal = (val || {}).v
                                 var processing = (val || {}).processing
                                 var data = (val || {}).data || null
-
+                                var external = (val || {}).external
                                 if ((newVal === true || newVal === false) && processing === true) {
-                                    self.promiseCBList[_prop](_prop, newVal, data)
+                                    if (!external) self.promiseCBList[_prop](_prop, newVal, data)
+                                    if (self.setPiping) self.promiseCBList[`${_prop}-pipe`](_prop, newVal, data)
                                 }
                             }
-                            // notify.ulog({ message: 'new value set', prop: _prop, value: val })
+                            //  notify.ulog({ message: 'new value set', prop: _prop, value: val })
                         },
                         enumerable: true,
                         configurable: true
@@ -477,16 +643,22 @@ module.exports = (notify) => {
             if (!isObject(v)) return null
             if (!Object.keys(v).length) return null
 
-            var setPromise = (id) => {
+            var setPromise = (id, usePipe = false) => {
                 return new Promise((resolve, reject) => {
                     if (!this.promiseCBList[id]) {
                         // wait for change in xpromise to initiate callback
                         this.promiseCBList[id] = (name, value, data) => {
                             var d = data !== null ? data : value
+
+                            if (usePipe || id.indexOf('-pipe') !== -1) {
+                                return resolve(true)
+                            }
+
                             if (value === true) {
                                 delete this.promiseCBList[id]
-                                return resolve(d)
+                                return resolve(usePipe || d)
                             }
+
                             if (value === false) {
                                 delete this.promiseCBList[id]
                                 return reject(d)
@@ -503,24 +675,57 @@ module.exports = (notify) => {
 
                 if (this.validPromise(v[k])) {
                     if (v[k].processing === true) {
-                        this.xpromise[k] = Object.assign({}, { processing: true }, v[k])
+                        this.xpromise[k] = Object.assign({}, v[k])
                         continue
                     }
                     // resolve or reject
-                    if (v[k].v === true || v[k].v === false) {
-                        if (v[k].data !== null) {
-                            this.xpromise[k] = Object.assign({}, { v: v[k].v, data: v[k].data }, v[k])
+                    if ((v[k].v === true || v[k].v === false)) {
+                        if (v[k].external === undefined) {
+                            if (v[k].data !== null) {
+                                this.xpromise[k] = Object.assign({}, { v: v[k].v, data: v[k].data }, v[k])
+                            } else {
+                                this.xpromise[k] = Object.assign({}, { v: v[k].v }, v[k])
+                            }
                         } else {
-                            this.xpromise[k] = Object.assign({}, { v: v[k].v }, v[k])
+                            if (this.setPiping) {
+                                // update external, this value will be issued from `asPromise` or `onReady`
+                                this.xpromise[k] = Object.assign({}, { v: v[k].v }, v[k])
+                            }
                         }
                     }
+
                     continue
                 } else {
                     if (v[k] !== undefined) {
-                        if (isString(v[k]) && v[k] !== 'set') {
-                            if (this.debug) notify.ulog(`[p] to set initial promise you need to provide string value 'set'`, true)
+                        if ((v[k] || {}).consume !== undefined) {
+                            if (this.isPromise(v[k].consume)) {
+                                var listener = this.xPromiseListener(k)
+                                listener[k] = 'set'
+                                v[k].v = listener[k]
+                                v[k].p = v[k].consume // holds data from external promise
+                                v[k].processing = null
+                                v[k].external = true
+                                delete v[k].consume
+                            }
+
+                            if (this.setPiping) {
+                                v[k].pipe = setPromise(`${k}-pipe`, true) // Promise.resolve(true)
+                            }
+
                             continue
                         }
+
+                        if ((v[k] || {}).external !== undefined) {
+                            continue
+                        }
+                        if ((v[k] || {}).pipe !== undefined) {
+                            continue
+                        }
+                        if (isString(v[k]) && v[k] !== 'set') {
+                            if (this.debug) notify.ulog(`[p] to set initial promise you need to provide string value 'set' 1`, true)
+                            continue
+                        }
+
                         if (v[k] === 'set') {
                             // first set the promise and the callback
                             var p = setPromise(k)
@@ -533,8 +738,13 @@ module.exports = (notify) => {
                                 v: listener[k],
                                 data: null
                             }
+
+                            if (this.setPiping) {
+                                v[k].pipe = setPromise(`${k}-pipe`, true)
+                            }
                         } else {
-                            if (this.debug) notify.ulog(`[p] to set initial promise you need to provide string value 'set'`, true)
+                            if (this.debug) notify.ulog(`[p] to set initial promise you need to provide string value 'set' 2`, true)
+
                             continue
                         }
                     }
@@ -545,13 +755,16 @@ module.exports = (notify) => {
         }
 
         isPromise(d) {
-            if (isEmpty(d)) return false
+            //  if (isEmpty(d)) return false
             if ((d || {}).then !== undefined) return true
             if (typeof d === 'function') return true
 
             return false
         }
 
+        isPipe(v) {
+            return (v || {}).pipe !== undefined
+        }
         /**
          * @validPromise
          * check that each promise has correct setup
@@ -560,32 +773,101 @@ module.exports = (notify) => {
             return ((v || {}).p !== undefined && (v || {}).v !== undefined)
         }
 
-        delete(uid) {
-            this.testUID(uid)
-            if (uid) this.lastUID = uid
-            if (!uid && this.lastUID) uid = this.lastUID
+        /**
+         * @setPiping
+         * set piping of consumed promise
+         */
+        setPiping(uid, lastData) {
+            if (!this.allowPipe) return true
+
+            if (this.ps[uid]) {
+                if ((this.ps[uid] || {}).pipe !== undefined) {
+                    // if (this.debug) notify.ulog(`[setPiping] cannot set, it already exists`, true)
+                    delete this.ps[uid].p
+                    delete this.ps[uid].d
+                    delete this.ps[uid].v
+                    delete this.ps[uid].processing
+                }
+            } else {
+                this.ps[uid] = {
+                    pipe: lastData.pipe
+                }
+                // this.ps = Object.assign({}, this.ps)
+            }
+            return this
+        }
+
+        /**
+         * @updateExternal
+         * when using piping will update pipe promise on ready
+         */
+        updateExternal(uid) {
+            try {
+                if (this.ps[uid].external) {
+                    if (this.setPiping) {
+                        this.ps[uid].processing = true
+                        this.ps[uid].v = true // always resolve pipe!
+
+                        // delay it so it calls after resolution
+                        setTimeout(() => {
+                            this.promiseCBList[`${uid}-pipe`](null, true, null)
+                        }, 100)
+                    }
+                }
+            } catch (err) {
+                console.log('err', err)
+            }
+
+            return this
+        }
+
+        /**
+         * @delete
+         * called after each promsie is consumed via `onReady` or `asPromise`
+         * set pipe if `allowPipe=true`
+         */
+        delete(uid, update = false) {
             var dels = 0
-            if (this.promiseCBList[uid]) {
-                delete this.promiseCBList[uid]
-                dels++
+            try {
+                this.testUID(uid)
+                if (uid) this.lastUID = uid
+                if (!uid && this.lastUID) uid = this.lastUID
+
+                if (this.promiseCBList[uid]) {
+                    delete this.promiseCBList[uid]
+                    dels++
+                }
+                if (this.xpromise[uid]) {
+                    delete this.xpromise[uid]
+                    dels++
+                }
+                if (this._xpromise[uid]) {
+                    delete this._xpromise[uid]
+
+                    dels++
+                }
+                if (this._ps[uid]) {
+                    if (this.allowPipe) {
+                        var lastData = cloneDeep(this._ps[uid])
+                        delete this._ps[uid]
+                        this.setPiping(uid, lastData) // recreated as pipe
+                    } else delete this._ps[uid]
+                    dels++
+                }
+            } catch (err) {
+
             }
-            if (this.xpromise[uid]) {
-                delete this.xpromise[uid]
-                dels++
-            }
-            if (this._xpromise[uid]) {
-                delete this._xpromise[uid]
-                dels++
-            }
-            if (this._ps[uid]) {
-                delete this._ps[uid]
-                dels++
-            }
+            if (update === true) this.updatePS(dels)
             if (dels) {
-                this.ps = Object.assign({}, this.ps)
                 return true
             } else return false
             // this.lastUID = null
+        }
+
+        updatePS(dels) {
+            if (dels) {
+                this.ps = Object.assign({}, this.ps)
+            }
         }
 
         testUID(UID) {
