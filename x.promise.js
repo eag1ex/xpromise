@@ -291,15 +291,6 @@ module.exports = (notify) => {
         }
 
         /**
-         * @pipe
-         * refer to class Xpipe at `x.pipe.js`
-         * // need to setup call back for then pipe becomes ready
-         */
-        // pipe(cb, uid, firstPipedData = null, resolution = null) {
-        //     // if(this.ps[uid])
-        //     return super.pipe(cb, uid, firstPipedData, resolution)
-        // }
-        /**
          * @all
          * return all promises in an array, can be used with Promise.all([...])
          */
@@ -338,12 +329,12 @@ module.exports = (notify) => {
             // make sure pipe calls after resolution of Xpromise
             setTimeout(() => {
                 // call original  Xpipe before update
-                super.initPipe(uid, data, resolution)
-                super.pipe((d, err) => {
-                    if (this.debug) notify.ulog('Xpipe initiated')
-                    if (err) return err
-                    return d
-                })
+                this.initPipe(uid, data, resolution)
+                    .pipe((d, err) => {
+                        if (this.debug) notify.ulog('Xpipe initiated')
+                        if (err) return err
+                        return d
+                    })
             }, 100)
 
             return true

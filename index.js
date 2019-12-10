@@ -11,7 +11,7 @@ const XXP = () => {
     var uid1b = '1233535--2'
 
     // consume example
-    var cp = Promise.resolve('custom promise')
+    var cp = Promise.reject('custom promise')
     // this.resolve(uid1, 'abc')
     xp.resolve(uid1a, 'abc')
     // this.resolve(uid1, 'abc')
@@ -27,13 +27,21 @@ const XXP = () => {
     }, err => {
         console.log('err', err)
     })
-    xp.pipe(z => {
-        console.log('pipe callback', z)
-        return z
-    })
+    setTimeout(() => {
+        xp.pipe((z, err) => {
+            if (err) console.log('pipe 1 err callback', err)
+            return err
+        })
+        xp.pipe((z, err) => {
+            if (err) console.log('pipe 2 err callback', err)
+
+            return err
+        })
+    }, 5000)
+
     // }, 200)
 }
-XXP()
+// XXP()
 const XXPIPE = () => {
     var Xpromise = require('./x.promise')()
     const debug = true
@@ -42,19 +50,29 @@ const XXPIPE = () => {
 
     var uid = 'abc'
     var initialData = { name: 'jack', age: 25 }
+    //
+    // setTimeout(() => {
     xp.initPipe(uid, initialData, true)
+    // }, 1000)
+    // setTimeout(() => {
+    xp.pipe((d, err) => {
+        // if (err) console.log('pipe 1 err', err)
+        console.log('pipe 1', d)
+        return 'test'
+    })
     setTimeout(() => {
         xp.pipe((d, err) => {
-            // if (err) console.log('pipe 1 err', err)
-            console.log('pipe 1', d)
-            return d
-        })
-
-        xp.pipe((d, err) => {
+        // if (err) console.log('pipe 1 err', err)
             console.log('pipe 2', d)
             return d
         })
-    }, 1000)
+    }, 2000)
+
+    // xp.pipe((d, err) => {
+    //     console.log('pipe 2', d)
+    //     return d
+    // })
+    // }, 1000)
 
     // setTimeout(() => {
     //     xp.pipe((d, err) => {

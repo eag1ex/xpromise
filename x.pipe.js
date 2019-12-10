@@ -12,12 +12,14 @@ module.exports = (Xpromise, notify) => {
     class XPipe extends Xpromise {
         constructor(promiseUID, opts, debug) {
             super(promiseUID, opts, debug)
-
+            // this.pipeWhenReady = opts.pipeWhenReady
+            // this.allowPipe // when from Xpromise, Xpipe will be set after `asPromise` or  `onReady` call is resolved
             this.pipeCBList = {}
             this._pipeList = {}
             this.pipeIndex = {} // current job pipe index status
             this.initPipeSet = {} // initPipe set for each job
             this.pendingPipes = {} // pipes that are delayed and waiting to be resolved on next issue
+            this._startPipeCBs = {}
         }
 
         /**
@@ -27,23 +29,59 @@ module.exports = (Xpromise, notify) => {
         initPipe(uid, firstPipedData = null, resolveReject = true) {
             this.testUID(uid)
 
-            if (this.pipeList[uid]) {
-                if (this.debug) notify.ulog(`[initPipe] cannot init, this pipe already active`)
-                // already active pie
-                return this
+            // set restriction only if `allowPipe` is not set to wait for callback to continue
+            if (!this.allowPipe) {
+                if (this.pipeList[uid]) {
+                    if (this.debug) notify.ulog(`[initPipe] cannot init, this pipe already active`)
+                    // already active pie
+                    return this
+                }
             }
 
             this.lastUID = uid
             // make sure this can only be called once per job
-            if (!this.initPipeSet[uid] && !this.pipeList[uid]) {
-                this.initPipeSet[uid] = {
-                    data: firstPipedData,
-                    resolution: resolveReject || false
+            if (this.allowPipe) {
+                if (!this.initPipeSet[uid]) {
+                    this.initPipeSet[uid] = {
+                        data: firstPipedData,
+                        resolution: resolveReject || false
+                    }
+                }
+            } else {
+                if (!this.initPipeSet[uid] && !this.pipeList[uid]) {
+                    this.initPipeSet[uid] = {
+                        data: firstPipedData,
+                        resolution: resolveReject || false
+                    }
                 }
             }
+
+            if (typeof this._startPipeCBs[uid] === 'function') {
+                this._startPipeCBs[uid](uid, firstPipedData, resolveReject)
+                console.log('initPipe _startPipeCBs called succespully')
+            }
+
             return this
         }
 
+        /**
+         * @beginPipe
+         * start pipe from a callback, when data arrived!
+         */
+        beginPipe(uid, cb) {
+            this.lastUID = uid
+            this.testUID(uid)
+
+            if (!this._startPipeCBs[uid]) {
+                this._startPipeCBs[uid] = cb
+            } else if (typeof this._startPipeCBs[uid] === 'function') {
+                // this._startPipeCBs[uid]()
+            }
+        }
+
+        endPipe() {
+            // tba
+        }
         /**
          * @pipe
          * `cb` if privided you can pipe each new data thru callback, you need to return it
@@ -54,49 +92,64 @@ module.exports = (Xpromise, notify) => {
         pipe(cb, uid, firstPipedData = null, resolution = null) {
             uid = this._getLastRef(uid)
             if (this.pipeIndex[uid] === undefined) this.pipeIndex[uid] = 0
-            // var errMessage = `[pipe] this uid ${uid} is not a promise so cannot pipe it`
 
             if (!this.setPipePromise(uid)) {
                 const errMessage = `[pipe] invalid pipe id ${uid}`
                 return this.pipeErrHandler(errMessage, cb)
             }
 
-            // update vars if `initPipe` was called initially
-            if (this.initPipeSet[uid]) {
-                firstPipedData = firstPipedData === null ? this.initPipeSet[uid].data : firstPipedData
-                resolution = resolution === null ? this.initPipeSet[uid].resolution : resolution
-                delete this.initPipeSet[uid] // delete after it was set
-            }
-            // this will be only called at index 0
-            this.startPipingSequence(uid, true, resolution, firstPipedData)
-
-            this.pipeIndex[uid]++ // increment each pipe count
-
-            var nextPipe = this.getPipe(uid)
-            if (!nextPipe) {
-                return this.pipeErrHandler('not a pipe', cb)
+            const pipeCallStart = (uid, firstPipedData, resolution) => {
+                // update vars if `initPipe` was called initially
+                if (this.initPipeSet[uid]) {
+                    firstPipedData = firstPipedData === null ? this.initPipeSet[uid].data : firstPipedData
+                    resolution = resolution === null ? this.initPipeSet[uid].resolution : resolution
+                    delete this.initPipeSet[uid] // delete after it was set
+                }
+                // this will be only called at index 0
+                this.startPipingSequence(uid, true, resolution, firstPipedData)
             }
 
-            this.waitingJob(uid)
+            const pipeCallEnd = (cb, uid) => {
+                this.pipeIndex[uid]++ // increment each pipe count
 
-            var pipeID = `${uid}-${this.jobIndex(uid)}`
-            if (isFunction(cb)) {
-                nextPipe.then(v => {
-                    var d = cb(v)
-                    this.callPipeResolution(pipeID, true, d, uid)
-                }, err => {
-                    var d = cb(null, err)
-                    this.callPipeResolution(pipeID, false, d, uid)
+                var nextPipe = this.getPipe(uid)
+                if (!nextPipe) {
+                    return this.pipeErrHandler('not a pipe', cb)
+                }
+
+                this.waitingJob(uid)
+
+                var pipeID = `${uid}-${this.jobIndex(uid)}`
+                if (isFunction(cb)) {
+                    nextPipe.then(v => {
+                        var d = cb(v)
+                        this.callPipeResolution(pipeID, true, d, uid)
+                    }, err => {
+                        var d = cb(null, err)
+                        this.callPipeResolution(pipeID, false, d, uid)
+                    })
+                    return this
+                } else {
+                    return nextPipe.then(v => {
+                        this.callPipeResolution(pipeID, true, v, uid)
+                        return v
+                    }, err => {
+                        this.callPipeResolution(pipeID, false, err, uid)
+                        return Promise.reject(err)
+                    })
+                }
+            }
+
+            // when we start the pipe but our data has not arrived, we wait for callback, and continue
+            if (this.allowPipe === true && (firstPipedData === null && !this.initPipeSet[uid])) {
+                this.beginPipe(uid, (_uid_, _readyData, _resolution) => {
+                    pipeCallStart(uid, _readyData, _resolution)
                 })
-                return this
+                if (this.debug) notify.ulog(`allowPipe=ture is set, waiting for initPipe on ready`)
+                return pipeCallEnd(cb, uid)
             } else {
-                return nextPipe.then(v => {
-                    this.callPipeResolution(pipeID, true, v, uid)
-                    return v
-                }, err => {
-                    this.callPipeResolution(pipeID, false, err, uid)
-                    return Promise.reject(err)
-                })
+                pipeCallStart(uid, firstPipedData, firstPipedData, resolution)
+                return pipeCallEnd(cb, uid)
             }
         }
 
@@ -235,7 +288,11 @@ module.exports = (Xpromise, notify) => {
          * the first pipe starts the pipe chain sequence, starts from index 0
          */
         startPipingSequence(id, pipeAssigned, trueFalse, pipedData) {
-            if (this.jobIndex(id) === 0 && pipeAssigned) {
+            if (this.allowPipe && pipeAssigned) {
+                const pipeID = `${id}-${0}`
+                this.callPipeResolution(pipeID, trueFalse, pipedData)
+            }
+            if (this.jobIndex(id) === 0 && pipeAssigned && !this.allowPipe) {
                 const pipeID = `${id}-${this.jobIndex(id)}`
                 this.callPipeResolution(pipeID, trueFalse, pipedData)
             } else {
