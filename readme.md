@@ -21,7 +21,8 @@ Cleaver Javascript Promise, similar to Q/defer, uses proto getter/setter with dy
 * `all`: a variable will return all current promises, so you can assign it to Promise.all(all)...
 * `pending`: a variable return index of currently active promises
 * `exists(uid)` : check if uid/ref exists, if promise exists!
-
+* `pipe(cb,uid)` :  Refer to XPipe class at `x.pipe.js`
+    - Can pipe/stream same jobs beond resolution (job consumption), very usefull when working in async environment
 
 ##### Stack
  - Lodash, ES6, javascript, Node.js

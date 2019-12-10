@@ -26,6 +26,13 @@ module.exports = (Xpromise, notify) => {
          */
         initPipe(uid, firstPipedData = null, resolveReject = true) {
             this.testUID(uid)
+
+            if (this.pipeList[uid]) {
+                if (this.debug) notify.ulog(`[initPipe] cannot init, this pipe already active`)
+                // already active pie
+                return this
+            }
+
             this.lastUID = uid
             // make sure this can only be called once per job
             if (!this.initPipeSet[uid] && !this.pipeList[uid]) {
@@ -127,6 +134,18 @@ module.exports = (Xpromise, notify) => {
             }
 
             this._pipeList = v
+        }
+
+        /**
+         *
+        */
+        pipeActive(uid) {
+            if (this.pipeList[uid]) {
+                if (Object.keys(this.pipeList[uid]).length) {
+                    return true
+                }
+            }
+            return false
         }
 
         /**
