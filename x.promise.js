@@ -1,12 +1,10 @@
 
-
 /**
  * @XPromise
  * cleaver promise, similar to Q/defer, uses proto getter/setter with dynamic callback to send resolve state
  *  - inteligent processing feature, will ignore promise with rejection, that is alraedy being resolved somewhere else
  * `p(uid)`: Set new promise with its uniq ref/id
  * `consume(uid,customPromise)`: provide external promise to be included in the framework
- * `xp` : a variable sorthand of `p()`, can use if if last uid already set
  * `set(uid)` : Reset previously set promise again
  * `resolve(uid)`: will set as ready to be resolved with `onReady` or `asPromise().then(..)`
  * `reject(uid)`: same as resolve but will return as rejected value
@@ -20,7 +18,7 @@
  */
 module.exports = (notify) => {
     if (!notify) notify = require('./libs/notifications')()
-    const { isEmpty, isArray, isObject, isString, isNumber, times, isFunction, cloneDeep } = require('lodash')
+    const { isEmpty, isArray, isObject, isString, isNumber, times } = require('lodash')
     class XPromise {
         constructor(promiseUID, opts, debug) {
             // if set initiate promise right away
@@ -45,16 +43,14 @@ module.exports = (notify) => {
 
             // consume example
             var cp = Promise.resolve('custom promise')
-            //this.resolve(uid1, 'abc')
+            // this.resolve(uid1, 'abc')
             this.resolve(uid1a, 'abc')
-            //this.resolve(uid1, 'abc')
+            // this.resolve(uid1, 'abc')
             this.consume(uid1, cp)
 
             // this.p(uid1)
             // this.p(uid1a)
             // this.p(uid1b)
-
-
 
             setTimeout(() => {
                 this.asPromise(uid1).then(d => {
@@ -63,7 +59,6 @@ module.exports = (notify) => {
                     console.log('err', err)
                 })
             }, 200)
-
         }
 
         /**
@@ -159,21 +154,6 @@ module.exports = (notify) => {
         }
 
         /**
-         * @xp
-         * short hand for p(..) method when lastUID is set
-        */
-        get xp() {
-            if (!this.lastUID) {
-                if (this.debug) notify.ulog(`cannot use xp if lastUID is not set`, true)
-                return this
-            }
-            var uid = this.lastUID
-            this.testUID(uid)
-
-            return this.p(uid)
-        }
-
-        /**
          * @set
          * set new promise
          * `uid`
@@ -262,7 +242,6 @@ module.exports = (notify) => {
                 return Promise.reject(`[asPromise] uid ${uid} doesnt exist or already resolved and deleted`)
             }
 
-
             if (!this.processing(uid, true)) {
                 return Promise.reject(`[asPromise] uid ${uid} already processed once before, unless this uid is your relative base which you havent declared`, true)
             }
@@ -275,7 +254,6 @@ module.exports = (notify) => {
 
                     return Promise.resolve(z)
                 }, err => {
-
                     this.delete(uid, true)
 
                     if (this.showRejects) {
@@ -303,7 +281,6 @@ module.exports = (notify) => {
                 if (typeof errCB === 'function') errCB(msg)
                 return false
             }
-
 
             if (!this.validPromise(this.ps[uid])) {
                 if (this.debug) notify.ulog(`[then] promise uid: ${uid} is invalid`, true)
@@ -338,7 +315,6 @@ module.exports = (notify) => {
             }
         }
 
-
         /**
          * @all
          * return all promises in an array, can be used with Promise.all([...])
@@ -349,7 +325,6 @@ module.exports = (notify) => {
             for (var k in this.ps) {
                 if (!this.ps.hasOwnProperty(k)) continue
                 var proms = (this.ps[k] || {}).p
-
 
                 if (!(this.ps[k] || {}).processing) {
                     this.ps[k].processing = true
@@ -505,12 +480,12 @@ module.exports = (notify) => {
             const _prop = prop
 
             try {
-                (function (prop) {
+                (function(prop) {
                     Object.defineProperty(self.xpromise, prop, {
-                        get: function () {
+                        get: function() {
                             return self[`_xpromise`][_prop]
                         },
-                        set: function (val) {
+                        set: function(val) {
                             self[`_xpromise`][_prop] = val
                             if (self.promiseCBList[_prop]) {
                                 var newVal = (val || {}).v
@@ -520,7 +495,6 @@ module.exports = (notify) => {
 
                                 if ((newVal === true || newVal === false) && processing === true) {
                                     if (!external) self.promiseCBList[_prop](_prop, newVal, data)
-
                                 }
                             }
                             //  notify.ulog({ message: 'new value set', prop: _prop, value: val })
@@ -549,33 +523,8 @@ module.exports = (notify) => {
             if (!isObject(v)) return null
             if (!Object.keys(v).length) return null
 
-
-            var setPromise = (id) => {
-                return new Promise((resolve, reject) => {
-                    if (!this.promiseCBList[id]) {
-                        // wait for change in xpromise to initiate callback
-                        this.promiseCBList[id] = (name, value, data) => {
-                            var d = data !== null ? data : value
-
-                            if (value === true) {
-                                delete this.promiseCBList[id]
-                                return resolve(d)
-                            }
-
-                            if (value === false) {
-                                delete this.promiseCBList[id]
-                                return reject(d)
-                            }
-                        }
-                        return
-                    }
-                    resolve(true)
-                })
-            } // setPromise
-
             for (var k in v) {
                 if (this.isPromise(v[k])) continue
-
 
                 if (this.validPromise(v[k])) {
                     if (v[k].processing === true) {
@@ -630,7 +579,7 @@ module.exports = (notify) => {
 
                         if (v[k] === 'set') {
                             // first set the promise and the callback
-                            var p = setPromise(k)
+                            var p = this.setPromise(k)
 
                             var listener = this.xPromiseListener(k)
                             listener[k] = 'set'
@@ -638,9 +587,8 @@ module.exports = (notify) => {
                                 p: p,
                                 processing: null, // in case we call multiples of then this will make sure it can only be called once!
                                 v: listener[k],
-                                data: null,
+                                data: null
                             }
-
                         } else {
                             if (this.debug) notify.ulog(`[p] to set initial promise you need to provide string value 'set' 2`, true)
 
@@ -651,6 +599,33 @@ module.exports = (notify) => {
             } // for
 
             this._ps = v
+        }
+
+        /**
+         * @newPromise
+         * set new promise with callback listener on when to resolve
+         */
+        newPromise(id) {
+            return new Promise((resolve, reject) => {
+                if (!this.promiseCBList[id]) {
+                    // wait for change in xpromise to initiate callback
+                    this.promiseCBList[id] = (name, value, data) => {
+                        var d = data !== null ? data : value
+
+                        if (value === true) {
+                            delete this.promiseCBList[id]
+                            return resolve(d)
+                        }
+
+                        if (value === false) {
+                            delete this.promiseCBList[id]
+                            return reject(d)
+                        }
+                    }
+                    return
+                }
+                resolve(true)
+            })
         }
 
         isPromise(d) {
@@ -668,9 +643,6 @@ module.exports = (notify) => {
         validPromise(v) {
             return ((v || {}).p !== undefined && (v || {}).v !== undefined)
         }
-
-
-
 
         /**
          * @delete
@@ -725,5 +697,7 @@ module.exports = (notify) => {
             return true
         }
     }
-    return XPromise
+
+    const XpromiseExtended = require('./x.pipe')(XPromise, notify)
+    return XpromiseExtended
 }
