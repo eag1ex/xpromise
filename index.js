@@ -49,23 +49,39 @@ const XXPIPE = () => {
     var xp = new Xpromise(null, opts, debug)
 
     var uid = 'abc'
+    var uid2 = 'abc2'
     var initialData = { name: 'jack', age: 25 }
     //
     // setTimeout(() => {
-    xp.initPipe(uid, initialData, true)
+    xp.initPipe(uid, { name: 'jack', age: 25 }, true)
+    xp.initPipe(uid2, { name: 'andy', age: 40 }, true)
+
     // }, 1000)
     // setTimeout(() => {
     xp.pipe((d, err) => {
         // if (err) console.log('pipe 1 err', err)
         console.log('pipe 1', d)
-        return 'test'
-    })
+        return 'test 1'
+    }, uid)
     setTimeout(() => {
         xp.pipe((d, err) => {
         // if (err) console.log('pipe 1 err', err)
             console.log('pipe 2', d)
             return d
-        })
+        }, uid)
+    }, 2000)
+
+    xp.pipe((d, err) => {
+        // if (err) console.log('pipe 1 err', err)
+        console.log('2 pipe 1', d)
+        return 'test 2'
+    }, uid2)
+    setTimeout(() => {
+        xp.pipe((d, err) => {
+        // if (err) console.log('pipe 1 err', err)
+            console.log('2 pipe 2', d)
+            return d
+        }, uid2)
     }, 2000)
 
     // xp.pipe((d, err) => {
@@ -98,3 +114,5 @@ const XXPIPE = () => {
     // }, 3000)
 }
 // XXPIPE()
+
+var pipeExamples = require('./examples/pipes-example.2')()

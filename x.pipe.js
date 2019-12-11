@@ -19,7 +19,9 @@ module.exports = (Xpromise, notify) => {
             this.pipeIndex = {} // current job pipe index status
             this.initPipeSet = {} // initPipe set for each job
             this.pendingPipes = {} // pipes that are delayed and waiting to be resolved on next issue
-            this._startPipeCBs = {}
+            this._startPipeCBs = {} // called initially via initPipe
+            this.pipeUIDindex = {}
+            this.pipePassFail = {} // alter resolution of each pipe, to either resolve or reject
         }
 
         /**
@@ -32,7 +34,7 @@ module.exports = (Xpromise, notify) => {
             // set restriction only if `allowPipe` is not set to wait for callback to continue
             if (!this.allowPipe) {
                 if (this.pipeList[uid]) {
-                    if (this.debug) notify.ulog(`[initPipe] cannot init, this pipe already active`)
+                    if (this.debug) notify.ulog(`[initPipe] cannot init, this pipe already active, or you have to set opts.allowPipe=true`)
                     // already active pie
                     return this
                 }
@@ -58,12 +60,24 @@ module.exports = (Xpromise, notify) => {
 
             if (typeof this._startPipeCBs[uid] === 'function') {
                 this._startPipeCBs[uid](uid, firstPipedData, resolveReject)
-                console.log('initPipe _startPipeCBs called succespully')
             }
 
             return this
         }
 
+        /**
+         * @uniqPipeIndexID
+         * pipes are async, not always do we have matching `uids` passed within callback
+         * to avoid miss-piped uids, store them by index of called pipe
+         */
+        uniqPipeIndexID(uid) {
+            if (!this.pipeUIDindex[`${uid}-${this.pipeIndex[uid]}`]) {
+                this.pipeUIDindex[`${uid}-${this.pipeIndex[uid]}`] = uid
+                return uid
+            } else {
+                return this.pipeUIDindex[`${uid}-${this.pipeIndex[uid]}`]
+            }
+        }
         /**
          * @beginPipe
          * start pipe from a callback, when data arrived!
@@ -79,8 +93,35 @@ module.exports = (Xpromise, notify) => {
             }
         }
 
-        endPipe() {
-            // tba
+        fail(uid) {
+            uid = this._getLastRef(uid)
+            var index = (this.pipeIndex[uid] !== undefined ? this.pipeIndex[uid] : 0)
+            this.pipePassFail[`${uid}-${index}`] = false
+
+            return this
+        }
+
+        pass(uid) {
+            uid = this._getLastRef(uid)
+            var index = (this.pipeIndex[uid] !== undefined ? this.pipeIndex[uid] : 0)
+            this.pipePassFail[`${uid}-${index}`] = true
+
+            return this
+        }
+
+        /**
+         * @passFailExists
+         * check for call to pass() or fail, if doesnt exist return null
+         */
+        passFailExists(uid, index) {
+            if (this.pipePassFail[`${uid}-${index}`] === true) {
+                return true
+            }
+            if (this.pipePassFail[`${uid}-${index}`] === false) {
+                return false
+            }
+
+            return null
         }
         /**
          * @pipe
@@ -91,7 +132,9 @@ module.exports = (Xpromise, notify) => {
          * */
         pipe(cb, uid, firstPipedData = null, resolution = null) {
             uid = this._getLastRef(uid)
+
             if (this.pipeIndex[uid] === undefined) this.pipeIndex[uid] = 0
+            uid = this.uniqPipeIndexID(uid)
 
             if (!this.setPipePromise(uid)) {
                 const errMessage = `[pipe] invalid pipe id ${uid}`
@@ -111,7 +154,8 @@ module.exports = (Xpromise, notify) => {
 
             const pipeCallEnd = (cb, uid) => {
                 this.pipeIndex[uid]++ // increment each pipe count
-
+                // NOTE when pass() or fail() was set we decide resolution of each pipe, otherwise continue as usual
+                var passFailResolution = this.passFailExists(uid, this.pipeIndex[uid] - 1)
                 var nextPipe = this.getPipe(uid)
                 if (!nextPipe) {
                     return this.pipeErrHandler('not a pipe', cb)
@@ -120,22 +164,51 @@ module.exports = (Xpromise, notify) => {
                 this.waitingJob(uid)
 
                 var pipeID = `${uid}-${this.jobIndex(uid)}`
+
                 if (isFunction(cb)) {
                     nextPipe.then(v => {
-                        var d = cb(v)
-                        this.callPipeResolution(pipeID, true, d, uid)
+                        try {
+                            var resol = passFailResolution !== null ? passFailResolution : true
+                            var d
+                            if (resol) d = cb(v)
+                            else d = cb(null, v)
+
+                            this.callPipeResolution(pipeID, resol, d, uid)
+                        } catch (err) {
+                            notify.ulog({ error: err, uid, message: 'tip: make sure you handle reject resolution' }, true)
+                        }
                     }, err => {
-                        var d = cb(null, err)
-                        this.callPipeResolution(pipeID, false, d, uid)
+                        try {
+                            var resol = passFailResolution !== null ? passFailResolution : false
+                            var d
+                            if (resol) d = cb(err)
+                            else d = cb(null, err)
+                            this.callPipeResolution(pipeID, resol, d, uid)
+                        } catch (err) {
+                            notify.ulog({ error: err, uid, message: 'tip: make sure you handle reject resolution' }, true)
+                        }
                     })
                     return this
                 } else {
                     return nextPipe.then(v => {
-                        this.callPipeResolution(pipeID, true, v, uid)
-                        return v
+                        try {
+                            var resol = passFailResolution !== null ? passFailResolution : true
+
+                            this.callPipeResolution(pipeID, resol, v, uid)
+                            if (resol) return v
+                            else return Promise.reject(v)
+                        } catch (err) {
+                            notify.ulog({ error: err, uid, message: 'tip: make sure you handle reject resolution' }, true)
+                        }
                     }, err => {
-                        this.callPipeResolution(pipeID, false, err, uid)
-                        return Promise.reject(err)
+                        try {
+                            var resol = passFailResolution !== null ? passFailResolution : false
+                            this.callPipeResolution(pipeID, resol, err, uid)
+                            if (resol) return err
+                            else return Promise.reject(err)
+                        } catch (err) {
+                            notify.ulog({ error: err, uid, message: 'tip: make sure you handle reject resolution' }, true)
+                        }
                     })
                 }
             }
@@ -144,8 +217,9 @@ module.exports = (Xpromise, notify) => {
             if (this.allowPipe === true && (firstPipedData === null && !this.initPipeSet[uid])) {
                 this.beginPipe(uid, (_uid_, _readyData, _resolution) => {
                     pipeCallStart(uid, _readyData, _resolution)
+                    delete this._startPipeCBs[_uid_] // delete callback after called once
                 })
-                if (this.debug) notify.ulog(`allowPipe=ture is set, waiting for initPipe on ready`)
+                // if (this.debug) notify.ulog(`allowPipe=ture is set, waiting for initPipe on ready`)
                 return pipeCallEnd(cb, uid)
             } else {
                 pipeCallStart(uid, firstPipedData, firstPipedData, resolution)
