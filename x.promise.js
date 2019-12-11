@@ -18,7 +18,7 @@
  */
 module.exports = (notify) => {
     if (!notify) notify = require('./libs/notifications')()
-    const { isEmpty, isArray, isObject, isString, isNumber, times } = require('lodash')
+    const { isEmpty, isArray, isObject, isString, isNumber, times, isFunction } = require('lodash')
     class XPromise {
         constructor(promiseUID, opts, debug) {
             // if set initiate promise right away
@@ -242,8 +242,8 @@ module.exports = (notify) => {
             // })
         }
 
-        onReady(cb, errCB) {
-            var uid = this.lastUID
+        onReady(cb, errCB, uid) {
+            uid = this._getLastRef(uid)
 
             try {
                 this.testUID(uid)
@@ -272,16 +272,23 @@ module.exports = (notify) => {
             }
 
             var rel = this._resolveAllRelativeAS(uid, cb, errCB)
-            if (rel) return true
+            if (rel !== null) return rel
             else {
                 this.ps[uid].p.then((v) => {
                     this.delete(uid, true)
-                    this.initiatePiping(uid, true, v) // conditionally enable piping
-                    if (typeof cb === 'function') cb(v)
+
+                    if (isFunction(cb)) {
+                        var cbData = cb(v) || v
+                        this.initiatePiping(uid, true, cbData) // conditionally enable piping
+                    }
                 }, err => {
                     this.delete(uid, true)
-                    this.initiatePiping(uid, false, err) // conditionally enable piping
-                    if (typeof errCB === 'function') errCB(err)
+
+                    if (isFunction(errCB)) {
+                        var cbData = errCB(err) || err
+                        this.initiatePiping(uid, false, cbData) // conditionally enable piping
+                    }
+
                     if (this.showRejects) {
                         notify.ulog({ message: 'onReady err', error: err }, true)
                     }
@@ -331,7 +338,7 @@ module.exports = (notify) => {
                 // call original  Xpipe before update
                 this.initPipe(uid, data, resolution)
                     .pipe((d, err) => {
-                        if (this.debug) notify.ulog('Xpipe initiated')
+                        //  if (this.debug) notify.ulog('Xpipe initiated')
                         if (err) return err
                         return d
                     })
@@ -342,40 +349,53 @@ module.exports = (notify) => {
 
         _resolveAllRelativeAS(uid, cb = null, cbERR = null) {
             var rel = this._findRelativePromise(uid)
-            // var hasCallbacks = isFunction(cb) || isFunction(cbERR)
+            var hasCallbacks = isFunction(cb) || isFunction(cbERR)
             if (rel) {
                 var { relative, refs } = rel
                 // if has callback do not return promise
-                return Promise.all(relative).then((d) => {
+                const p = Promise.all(relative).then((d) => {
                     times(refs.length, i => {
                         var del = this.delete(refs[i], false)
                         // if (del) console.log('del', refs[i])
                     })
                     this.updatePS(true)
 
-                    this.initiatePiping(uid, true, d) // conditionally enable piping
-
-                    if (typeof cb === 'function') cb(d)
-                    else return Promise.resolve(d)
+                    // return resolve data or callback data if not null
+                    if (isFunction(cb)) {
+                        var cbData = cb(d) || d
+                        this.initiatePiping(uid, true, cbData) // conditionally enable piping
+                        return
+                    }
+                    if (!isFunction(cb)) {
+                        this.initiatePiping(uid, true, d) // conditionally enable piping
+                        return Promise.resolve(d)
+                    }
                 }, err => {
                     times(refs.length, i => {
                         var del = this.delete(refs[i], false)
                         // if (del) console.log('del', refs[i])
                     })
                     this.updatePS(true)
-                    this.initiatePiping(uid, false, err) // conditionally enable piping
-                    if (typeof cbERR === 'function') {
-                        cbERR(err)
+
+                    if (isFunction(cbERR)) {
+                        var cbData = cbERR(err) || err
+                        this.initiatePiping(uid, false, cbData) // conditionally enable piping
                         if (this.showRejects) {
                             notify.ulog({ message: 'onReady err', error: err }, true)
                         }
-                    } else {
+                        return
+                    }
+                    if (!isFunction(cbERR)) {
+                        this.initiatePiping(uid, false, err) // conditionally enable piping
                         if (this.showRejects) {
                             notify.ulog({ message: 'asPromise err', error: err }, true)
                         }
                         return Promise.reject(err)
                     }
                 })
+
+                if (hasCallbacks) return this
+                else return p
             } else {
                 return null
             }

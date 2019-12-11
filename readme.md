@@ -16,7 +16,7 @@ Smart Javascript Promise with event stream piping, similar to Q/defer, uses prot
 * `resolve(uid, data)`: will set resolve() with `onReady` or `asPromise().then(..)`, `data` is optional,  when not set will return `true`
 * `reject(uid, data)`: same as `resolve` but return as rejecte(), `data` is optional, when not set will return `false`
 * `ref(uid)` : will set uid/ref and continue on path of that job
-* `onReady(done=>,err=>)` return ready in callback
+* `onReady(done=>,err=>,uid)` return data as promise from callback. Additionaly when using pipe `opts.allowPipe=true` you can further munipupate data, checkout examples at: `./examples/xpromise-example.1.js`
 * `asPromise(uid)`: will return as promise: asPromise().then(d=>...)
 * `all`: variable will return all current promises, so you can assign it to Promise.all(all)...
 * `pending`: variable return index of currently active promises
@@ -31,56 +31,90 @@ Smart Javascript Promise with event stream piping, similar to Q/defer, uses prot
 
 
 ##### Usage/Examples
-- Simple XPipe, bank transaction example:
-- more piping stream event examples at: `./examples/pipes-example.x`
+* XPromise bank transaction example:
+* more examples at: `./examples`
+* `$/ node ./examples/pipes-simple.js`
+* `$/ node ./examples/xpromise-example.1.js`
 ```
-const notify = require('../libs/notifications')()
-const XPromise = require('../x.promise')(notify)
-const debug = true
-const opts = { showRejects: true, allowPipe: true }
-const x = new XPromise(null, opts, debug)
-const jobID1 = 'job01'
+ var Xpromise = require('../x.promise')()
+    const debug = true
+    const opts = { showRejects: true, // show reject message in console
+        allowPipe: true } // if set Xpipe is enabled and you can pipe stream results of each (base) job
+    var uid = null
+    const xp = new Xpromise(uid, opts, debug)
 
-setTimeout(() => {
-    var resolution = true // resolve()
-    x.initPipe(jobID1, { type: 'bank transaction', processing: 0 }, resolution)
-}, 2000)
+    var uid1 = '1233535' // base operation
+    var uid1a = '1233535--1' // relational operation (note same number with sufix)
+    var uid1b = '1233535--2'
 
-x.pipe(d => {
-    d.age = 50
-    d.job = x.lastUID
-    notify.ulog({ d })
-    d.index = 1
-    d.processing = 20
-    return d
-}, jobID1)
-    .fail() // reject() status
-    .pipe((d, err) => {
-        err.status = 'failed'
-        err.processing = 30
-        err.index++
-        notify.ulog({ err })
-        return err
-    })
-    .pass() // change back to resolve()
-    .pipe(d => {
-        d.status = 'corrected'
-        d.index++
-        d.processing = 60
-        notify.ulog({ d })
+    const transaction = (id) => {
+        const data = { account: 'savings', balance: 10000, name: 'John Doe', bank: 'Swiss Bank', number: '000123456789' }
+        xp.resolve(id, data)
+    }
+
+    const broker = (id) => {
+        const data = { broker: 'Pannama Bank', code: '007', agent: 'Boris', fee: 100 }
+        xp.resolve(id, data)
+    }
+
+    // security layer
+    const proxy = (id) => {
+        const data = { secret_code: 'xpr3457689', verified: true }
+        xp.resolve(id, data)
+    }
+
+    // NOTE assing promise to each ID
+    xp.p(uid1)
+        .p(uid1a)
+        .p(uid1b)
+
+    // NOTE simulate proxy
+    setTimeout(() => {
+        proxy(uid1b)
+    }, 500)
+
+    // NOTE simulate transaction
+    setTimeout(() => {
+        transaction(uid1)
+    }, 1000)
+
+    // NOTE simulate broker
+    setTimeout(() => {
+        broker(uid1a)
+    }, 1500)
+
+    // NOTE complete process once broker and transaction finished!
+    // all operations need to resolve in order to complete
+    // xp.asPromise(uid1).then(data => {
+    //     var d = merge.apply(null, data)
+    //     d.balance = d.balance - d.fee
+    //     delete d.fee
+    //     notify.ulog({ message: `process complete for job ${uid1}`, d })
+    // }, err => {
+    //     // something didnt resolve
+    //     notify.ulog({ err }, true)
+    // })
+    // NOTE onReady simirly as asPromise > it does return promise from callback, but you can further update data and send to pipe stream
+    xp.onReady(data => {
+        var d = merge.apply(null, data)
+        d.balance = d.balance - d.fee
+        delete d.fee
+        notify.ulog({ message: `process complete for job ${uid1}`, d })
         return d
-    })
-
-setTimeout(() => {
-    x.pipe(d => {
-        d.status = 'complete'
-        d.processing = 100
-        d.index++
-        notify.ulog({ d })
-        return d
-    }, jobID1)
-}, 2000)
-/// pipe().pipe() on and on
+    }, err => {
+        notify.ulog({ message: 'onReady err', err })
+    }, uid1)
+        .pipe((d, err) => {
+            d.status = 'complete'
+            notify.ulog({ message: '[pipe] 1', d })
+            return d
+        })
+        .fail() // enforce reject()
+        .pipe((d, err) => {
+            err.status = 'error'
+            notify.ulog({ message: '[pipe] 2', err }, true)
+            return err
+        })
 
 ```
 
