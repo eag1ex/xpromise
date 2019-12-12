@@ -48,7 +48,7 @@ when chaining
 * `$/ node ./examples/pipes-simple.js`
 * `$/ node ./examples/xpromise-example.1.js`
 
-```
+``
  var Xpromise = require('../x.promise')()
     const debug = true
     const opts = { showRejects: true, // show reject message in console
@@ -130,7 +130,7 @@ when chaining
             return err
         })
 
-```
+``
 
 ##### Features:
 * This application supports chaining
