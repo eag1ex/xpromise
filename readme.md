@@ -4,14 +4,18 @@
 
 
 #### Description
-Smart Javascript Promise with event stream piping, similar to Q/defer, uses prototype getter/setter with dynamic callbacks to send resolve states.
-- Grouping promises `ralative` to main `job` and resolving all as part of one.
+Smart Javascript Promise Manager with stream piping support, similar to Q/defer, uses prototype getter/setter with dynamic callbacks to set resolve states.
+- Manage and control all `resolve()` and `reject()` promises.
+- Group promises `relative` to main `job` and resolving all as part of one.
 - Easy to maintain all promises in one framework
 - Manage async functionality with `.pipe(d=>).pipe(d=>)`, allows piping streamed events
 
+###### Why use it?
+- Your application is promise, async driven
+
 
 #### Methods
-* `p(uid)`: Set new promise with its uniq ref/id
+* `defer(uid)`: Set new promise with its uniq ref/id
 * `set(uid)` : Reset previously set promise again
 * `resolve(uid, data)`: will set resolve() with `onReady` or `asPromise().then(..)`, `data` is optional,  when not set will return `true`
 * `reject(uid, data)`: same as `resolve` but return as rejecte(), `data` is optional, when not set will return `false`
@@ -23,11 +27,19 @@ Smart Javascript Promise with event stream piping, similar to Q/defer, uses prot
 * `exists(uid)` : check if uid/ref exists, if promise exists!
 * `pipe(cb=>,uid)` :  Refers to extended XPipe class refer to `x.pipe.js`
     - pipe/stream jobs beond resolution (job consumption), very usefull when working in async environment
-* `pass(uid)` : specify before `.pipe()` if you want it to pass or fail, regardless, uid not needed when chaining 
+* `initPipe(uid, initialData, resolution:bolean)` :  Xpipe can be used without Xpromise, if you are waiting for something before piping starts, its where you would use it.
+    - `initialData`: provide data you want to start piping, 
+    - `resolution` : you wish the pipe to `resolve()` or `reject()` provide `true` or `false`, default is `true`.
+    - examples available at `$/ node ./examples/pipes-simple.js`
+* `pass(uid)` : specify before `.pipe()` if you want it to pass or fail, regardless, uid not needed 
+when chaining 
 * `fail(uid)`: opposite of `pass()`
 
 ##### Stack
- - Lodash, ES6, javascript, Node.js
+ - Lodash, ES6, Javascript, Node.js, ES6 Promise
+
+#### Instalation 
+* `$/ npm install`
 
 
 ##### Usage/Examples
@@ -64,9 +76,9 @@ Smart Javascript Promise with event stream piping, similar to Q/defer, uses prot
     }
 
     // NOTE assing promise to each ID
-    xp.p(uid1)
-        .p(uid1a)
-        .p(uid1b)
+    xp.defer(uid1)
+        .defer(uid1a)
+        .defer(uid1b)
 
     // NOTE simulate proxy
     setTimeout(() => {

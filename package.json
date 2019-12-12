@@ -1,7 +1,7 @@
 {
   "name": "x-promise",
   "version": "1.0.0",
-  "description": "",
+  "description": "Smart Javascript Promise Manager with piping support",
   "main": "index.js",
   "scripts": {
     "start": "node ./index"

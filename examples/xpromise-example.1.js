@@ -8,11 +8,16 @@ module.exports = () => {
     const { merge } = require('lodash')
     var Xpromise = require('../x.promise')()
     const debug = true
-    const opts = { showRejects: true, // show reject message in console
+    const opts = {
+        // relSufix: '--', // preset default
+        showRejects: true, // show reject message in console
         allowPipe: true } // if set Xpipe is enabled and you can pipe stream results of each (base) job
     var uid = null
     const xp = new Xpromise(uid, opts, debug)
 
+    /**
+     * to create relational operation, make sure job number is the same with new sufix, `--{number}`
+     */
     var uid1 = '1233535' // base operation
     var uid1a = '1233535--1' // relational operation (note same number with sufix)
     var uid1b = '1233535--2'
@@ -34,9 +39,9 @@ module.exports = () => {
     }
 
     // NOTE assing promise to each ID
-    xp.p(uid1)
-        .p(uid1a)
-        .p(uid1b)
+    xp.defer(uid1)
+        .defer(uid1a)
+        .defer(uid1b)
 
     // NOTE simulate proxy
     setTimeout(() => {
@@ -78,6 +83,7 @@ module.exports = () => {
         .pipe((d, err) => {
             d.status = 'complete'
             notify.ulog({ message: '[pipe] 1', d })
+            //  throw ('ups') // NOTE can handle errors
             return d
         })
         .fail() // enforce reject()

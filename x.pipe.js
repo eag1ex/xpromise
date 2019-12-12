@@ -27,6 +27,10 @@ module.exports = (Xpromise, notify) => {
         /**
          * @initPipe
          * you can use it to start the pipe, optionally, or just start with the `pipe` itself
+         * Only use `initPipe` when not working with Xpromise
+         * `uid` provide uid to track your pipe
+         * `firstPipedData`: initial data to pipe
+         * `resolveReject:boolean`: this pipe should resolve or reject, default is true
          */
         initPipe(uid, firstPipedData = null, resolveReject = true) {
             this.testUID(uid)
@@ -176,6 +180,8 @@ module.exports = (Xpromise, notify) => {
                             this.callPipeResolution(pipeID, resol, d, uid)
                         } catch (err) {
                             notify.ulog({ error: err, uid, message: 'tip: make sure you handle reject resolution' }, true)
+                            // return rejection if callback error
+                            this.callPipeResolution(pipeID, false, { error: err }, uid)
                         }
                     }, err => {
                         try {
@@ -186,6 +192,8 @@ module.exports = (Xpromise, notify) => {
                             this.callPipeResolution(pipeID, resol, d, uid)
                         } catch (err) {
                             notify.ulog({ error: err, uid, message: 'tip: make sure you handle reject resolution' }, true)
+                            // return rejection if callback error
+                            this.callPipeResolution(pipeID, false, { error: err }, uid)
                         }
                     })
                     return this

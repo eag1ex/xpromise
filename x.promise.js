@@ -1,20 +1,6 @@
 
 /**
  * @XPromise
- * cleaver promise, similar to Q/defer, uses proto getter/setter with dynamic callback to send resolve state
- *  - inteligent processing feature, will ignore promise with rejection, that is alraedy being resolved somewhere else
- * `p(uid)`: Set new promise with its uniq ref/id
- * `consume(uid,customPromise)`: provide external promise to be included in the framework
- * `set(uid)` : Reset previously set promise again
- * `resolve(uid)`: will set as ready to be resolved with `onReady` or `asPromise().then(..)`
- * `reject(uid)`: same as resolve but will return as rejected value
- * `ref(uid)` : will set uid/ref so dont have to repeat typing your uid
- * `onReady(done=>,err=>)` will return ready data in callback
- * `asPromise(uid)`: will return as promise: asPromise().then(d=>...)
- * `all`: a variable will return all current promises, so you can assign it to Promise.all(all)...
- * `pending`: a variable return index of currently active promises
- * `exists(uid)` : check if uid/ref exists, if promise exists!
- * `pipe(cb,uid)` :  Refer to XPipe class at `x.pipe.js`
  */
 module.exports = (notify) => {
     if (!notify) notify = require('./libs/notifications')()
@@ -23,8 +9,9 @@ module.exports = (notify) => {
         constructor(promiseUID, opts, debug) {
             // if set initiate promise right away
             if (isString(promiseUID)) {
-                this.p(promiseUID)
+                this.defer(promiseUID)
             }
+            this._relSufix = opts.relSufix || '--'
             this.showRejects = opts.showRejects || null // print reject messages to the console
             this.allowPipe = opts.allowPipe || null //  you can pipe thru each promise after it was consumed with `asPromise` or `onReady`
             this.debug = debug
@@ -47,7 +34,9 @@ module.exports = (notify) => {
 
             // test for any relative promise that exist
             var relIndex = 0
-            if (relative && uid.indexOf(this.relSufix) === -1) {
+
+            // only test when base uid is not relative job
+            if (relative && !this.validRelJob(uid)) {
                 this.testUID(uid)
 
                 for (var k in this.ps) {
@@ -82,11 +71,11 @@ module.exports = (notify) => {
         }
 
         /**
-         * @p
+         * @defer
          * auto set new promise, if doesnt already exist
          * `uid` provide uniq id for each promise
          */
-        p(uid) {
+        defer(uid) {
             uid = this._getLastRef(uid)
 
             if (!this.ps[uid]) {
@@ -209,8 +198,10 @@ module.exports = (notify) => {
         /**
          * @sync
          * sinc then cannot be used to copy behaviour, use `sync` as promise or await
+         * `uid`: identify your promise if not chaining
+         * `allowPipe:boolean` optional to disable `opts.allowPipe` for this call
          */
-        asPromise(uid) {
+        asPromise(uid, allowPipe) {
             uid = this._getLastRef(uid)
 
             if (!this.exists(uid, true)) {
@@ -226,11 +217,11 @@ module.exports = (notify) => {
             else {
                 return this.ps[uid].p.then(z => {
                     this.delete(uid, true)
-                    this.initiatePiping(uid, true, z) // conditionally enable piping
+                    this._initiatePiping(uid, true, z, allowPipe) // conditionally enable piping
                     return Promise.resolve(z)
                 }, err => {
                     this.delete(uid, true)
-                    this.initiatePiping(uid, false, err) // conditionally enable piping
+                    this._initiatePiping(uid, false, err, allowPipe) // conditionally enable piping
                     if (this.showRejects) {
                         notify.ulog({ message: 'asPromise err', error: err }, true)
                     }
@@ -242,7 +233,16 @@ module.exports = (notify) => {
             // })
         }
 
-        onReady(cb, errCB, uid) {
+        /**
+         * @onReady
+         * finall call for Xpromise on resolve or reject, including relative promise
+         * `cb=>` callback resolved promise, you can munipulate data by return callback with `opts.allowPipe=true`
+         *  and this will pass data stream to the next .pipe
+         * `errCB=>` same as `cb` but returns reject promise
+         * `uid`: identify your callback promise if not chaining
+         * `allowPipe:boolean` optional to disable `opts.allowPipe` for this call
+         */
+        onReady(cb, errCB, uid, allowPipe) {
             uid = this._getLastRef(uid)
 
             try {
@@ -278,15 +278,23 @@ module.exports = (notify) => {
                     this.delete(uid, true)
 
                     if (isFunction(cb)) {
-                        var cbData = cb(v) || v
-                        this.initiatePiping(uid, true, cbData) // conditionally enable piping
+                        try {
+                            var cbData = cb(v) || v
+                            this._initiatePiping(uid, true, cbData, allowPipe) // conditionally enable piping
+                        } catch (err) {
+                            this._initiatePiping(uid, false, { error: err }, allowPipe) // conditionally enable piping
+                        }
                     }
                 }, err => {
                     this.delete(uid, true)
 
                     if (isFunction(errCB)) {
-                        var cbData = errCB(err) || err
-                        this.initiatePiping(uid, false, cbData) // conditionally enable piping
+                        try {
+                            var cbData = errCB(err) || err
+                            this._initiatePiping(uid, false, cbData, allowPipe) // conditionally enable piping
+                        } catch (err) {
+                            this._initiatePiping(uid, false, { error: err }, allowPipe) // conditionally enable piping
+                        }
                     }
 
                     if (this.showRejects) {
@@ -328,11 +336,15 @@ module.exports = (notify) => {
         }
 
         /**
-         * @initiatePiping
+         * @_initiatePiping
          * initiate piping feature
          */
-        initiatePiping(uid, resolution, data) {
+        _initiatePiping(uid, resolution, data, allowPipe) {
             if (!this.allowPipe) return false
+            // override to disable pipe for this call
+            if (this.allowPipe === true && allowPipe === false) {
+                return false
+            }
             // make sure pipe calls after resolution of Xpromise
             setTimeout(() => {
                 // call original  Xpipe before update
@@ -362,12 +374,17 @@ module.exports = (notify) => {
 
                     // return resolve data or callback data if not null
                     if (isFunction(cb)) {
-                        var cbData = cb(d) || d
-                        this.initiatePiping(uid, true, cbData) // conditionally enable piping
+                        try {
+                            var cbData = cb(d) || d
+                            this._initiatePiping(uid, true, cbData) // conditionally enable piping
+                        } catch (err) {
+                            this._initiatePiping(uid, false, { error: err }) // conditionally enable piping
+                        }
+
                         return
                     }
                     if (!isFunction(cb)) {
-                        this.initiatePiping(uid, true, d) // conditionally enable piping
+                        this._initiatePiping(uid, true, d) // conditionally enable piping
                         return Promise.resolve(d)
                     }
                 }, err => {
@@ -378,15 +395,19 @@ module.exports = (notify) => {
                     this.updatePS(true)
 
                     if (isFunction(cbERR)) {
-                        var cbData = cbERR(err) || err
-                        this.initiatePiping(uid, false, cbData) // conditionally enable piping
+                        try {
+                            var cbData = cbERR(err) || err
+                            this._initiatePiping(uid, false, cbData) // conditionally enable piping
+                        } catch (err) {
+                            this._initiatePiping(uid, false, { error: err }) // conditionally enable piping
+                        }
                         if (this.showRejects) {
                             notify.ulog({ message: 'onReady err', error: err }, true)
                         }
                         return
                     }
                     if (!isFunction(cbERR)) {
-                        this.initiatePiping(uid, false, err) // conditionally enable piping
+                        this._initiatePiping(uid, false, err) // conditionally enable piping
                         if (this.showRejects) {
                             notify.ulog({ message: 'asPromise err', error: err }, true)
                         }
@@ -410,7 +431,7 @@ module.exports = (notify) => {
             this.testUID(uid)
 
             // do not find relative's with relative!
-            if (uid.indexOf(this.relSufix) !== -1) {
+            if (this.validRelJob(uid)) {
                 return null
             }
             var relative = []
@@ -457,17 +478,35 @@ module.exports = (notify) => {
             } else return false
         }
 
+        set relSufix(v) {
+            var _default = `--`
+            if (isEmpty(v)) v = _default
+            if (!isString(v)) v = _default
+            this._relSufix = v
+        }
         get relSufix() {
             return `--`
         }
 
         /**
+         * @validRelJob
+         * verify if dealing with relative job
+         */
+        validRelJob(uid = '') {
+            if (uid.indexOf(this.relSufix) === -1) return false
+            var num = uid.split(this.relSufix)[1]
+
+            if (isEmpty(num)) return false
+            if (isNaN(Number(num))) return false
+            return true
+        }
+        /**
          * @relativeProcessing
-         * set relative for processing also
+         * find relative when processing base uid
          */
         relativeProcessing(uid) {
             // process relative only when using base promise
-            if (uid.indexOf(this.relSufix) !== -1) return
+            if (this.validRelJob(uid)) return
 
             var updated = false
             for (var k in this.ps) {
@@ -647,10 +686,14 @@ module.exports = (notify) => {
             })
         }
 
+        /**
+         * @isPromise
+         * check if we are dealing with promise
+         */
         isPromise(d) {
-            //  if (isEmpty(d)) return false
-            if ((d || {}).then !== undefined) return true
-            if (typeof d === 'function') return true
+            if (!d) return false
+            var is_promise = (d || {}).__proto__
+            if (typeof (is_promise || {}).then === 'function') return true
 
             return false
         }
