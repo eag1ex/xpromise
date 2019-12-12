@@ -119,6 +119,7 @@ when chaining
         .pipe((d, err) => {
             d.status = 'complete'
             notify.ulog({ message: '[pipe] 1', d })
+            //  throw ('ups') // NOTE can handle errors
             return d
         })
         .fail() // enforce reject()
