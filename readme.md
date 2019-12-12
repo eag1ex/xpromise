@@ -47,6 +47,7 @@ when chaining
 * more examples at: `./examples`
 * `$/ node ./examples/pipes-simple.js`
 * `$/ node ./examples/xpromise-example.1.js`
+
 ```
  var Xpromise = require('../x.promise')()
     const debug = true
