@@ -65,8 +65,9 @@ module.exports = () => {
             var nData = merge.apply(null, d)
             nData.balance = nData.balance - nData.fee - 500
             delete nData.fee
-            xp.resolve(id, nData)
-                .resolve(uid1a, true) // NOTE update broker with no data, we need to return something to onReady
+
+            xp.resolve(id, nData) // NOTE must return new data for base job `uid1`
+            //  .resolve(uid1a, true) // NOTE update broker with no data, we need to return something to onReady
         }, [id, uid1a]) // provide broker and transaction id
     }
 
@@ -104,6 +105,7 @@ module.exports = () => {
 
     // NOTE onReady similar to asPromise, returns promise from callback, but can further munipulate data and send to pipe stream
     xp.onReady(data => {
+        console.log('before merge', data)
         var d = merge.apply(null, data)
         notify.ulog({ message: `[onReady] process complete for job ${uid1}`, d })
         return d

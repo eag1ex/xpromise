@@ -23,8 +23,10 @@ Smart Javascript Promise Manager with stream piping support, similar to Q/defer,
 
 * `reject(uid, data)`: same as `resolve` but return as rejecte(), `data` is optional, when not set will return `false`
 
-* `get(cb=>, [uid])` : you want to tap in to resolved promise, update it to return modified data  `onReady` or `asPromise`
+* `get(cb=>, [uid])` : you want to tap in to resolved early promise, update it to return modified data  in `onReady` or `asPromise`
     - `[uid]`: provide single or multiple uids to resolve. Single [uid]< 1 uid provided you must return it, so it can be resolved automaticly, example `cb=>{return data}`. If [uid1,uid2] multiples provided, do own logic calculation, then resolve(uid,data)/reject(uid,data) each `uid` with desired data. No need to return since you are handling each your self! Examples provided in `./examples/xpromise-example.1.js`
+
+* `delay(cb=>,timeDelay:ms, uid)` : do not use setTimeout with `get()` if you want to handle promise early before it hits `onReady` or `asPromise`, delay allows to track each uid and tells final call to wait until ready, provide your logic in delay callback as you would in setTimeout, spetify `timeDelay`< time to wait, and must provide uid for each main transaction. Examples provided in `./examples/xpromise-example.1.js`
 
 * `ref(uid)` : will set uid/ref and continue on path of that job
 
