@@ -7,7 +7,7 @@ module.exports = (Xpromise, notify) => {
     if (!notify) notify = require('../libs/notifications')()
     const { isArray, isEmpty, isObject, isFunction } = require('lodash')
 
-    if (!Xpromise) Xpromise = function() {} // allow use if xpromise not set
+    if (!Xpromise) Xpromise = function() { } // allow use if xpromise not set
 
     class XPipe extends Xpromise {
         constructor(promiseUID, opts, debug) {
@@ -326,8 +326,8 @@ module.exports = (Xpromise, notify) => {
                 pipeSet = true
             } else {
                 const pipeID = `${id}-${this.jobIndex(id)}`
-                if (!this.pipeList[id][ this.jobIndex(id) ]) {
-                    this.pipeList[id][ this.jobIndex(id) ] = this.newPipePromise(pipeID)
+                if (!this.pipeList[id][this.jobIndex(id)]) {
+                    this.pipeList[id][this.jobIndex(id)] = this.newPipePromise(pipeID)
                     pipeSet = true
                 }
             }
@@ -337,7 +337,7 @@ module.exports = (Xpromise, notify) => {
 
             // in case it exists update state
             if (!pipeSet) {
-                pipeSet = this.pipeList[id][ this.jobIndex(id) ] !== undefined
+                pipeSet = this.pipeList[id][this.jobIndex(id)] !== undefined
             }
             return pipeSet
         }
