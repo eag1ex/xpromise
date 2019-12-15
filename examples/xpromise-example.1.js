@@ -105,7 +105,6 @@ module.exports = () => {
 
     // NOTE onReady similar to asPromise, returns promise from callback, but can further munipulate data and send to pipe stream
     xp.onReady(data => {
-        console.log('before merge', data)
         var d = merge.apply(null, data)
         notify.ulog({ message: `[onReady] process complete for job ${uid1}`, d })
         return d
