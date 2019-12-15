@@ -4,7 +4,7 @@
  *  extention of `XPromise`, to allow piping/ compumed jobs as streams, in async environment
  */
 module.exports = (Xpromise, notify) => {
-    if (!notify) notify = require('./libs/notifications')()
+    if (!notify) notify = require('../libs/notifications')()
     const { isArray, isEmpty, isObject, isFunction } = require('lodash')
 
     if (!Xpromise) Xpromise = function() {} // allow use if xpromise not set
@@ -233,6 +233,14 @@ module.exports = (Xpromise, notify) => {
                 pipeCallStart(uid, firstPipedData, firstPipedData, resolution)
                 return pipeCallEnd(cb, uid)
             }
+        }
+
+        /**
+         * @end
+         * end promise
+         */
+        end(uid) {
+            uid = this._getLastRef(uid)
         }
 
         get pipeList() {

@@ -3,8 +3,8 @@
  * @XPromise
  */
 module.exports = (notify) => {
-    if (!notify) notify = require('./libs/notifications')()
-    const { isEmpty, isArray, isObject, isString, isNumber, times, isFunction } = require('lodash')
+    if (!notify) notify = require('../libs/notifications')()
+    const { isEmpty, isArray, isObject, isString, isNumber, times, isFunction, reduce, cloneDeep, indexOf } = require('lodash')
     class XPromise {
         constructor(promiseUID, opts, debug) {
             // if set initiate promise right away
@@ -21,6 +21,8 @@ module.exports = (notify) => {
             this._ps = {}
             this.lastUID = null
             this.rejects = []
+            // this.delayedProcessingCB = {} // delay processing from `asPromise` or `onReady`
+            this.delayCB = {}// delay call for each `asPromise` or `onReady` when needed
         }
 
         /**
@@ -88,6 +90,153 @@ module.exports = (notify) => {
         }
 
         /**
+         * @get
+         * resolve
+         * `cb` must provide callback, and return data to set new resolve/reject state
+         * `uid or [uid...]` provide uid if not chaining, or if want to resolve multiple promise, provide array of uids
+         * note: if providing array of uids you have to resolve each uid seperatly, your self in order to end `asPromise` or `onReady` since its waiting for your request
+         */
+        get(cb, uid) {
+            if (!isFunction(cb)) {
+                if (this.debug) notify.ulog(`[get()] must have callback set`, true)
+                return this
+            }
+
+            const reset = (uids = []) => {
+                // set as new
+                for (var i = 0; i < uids.length; i++) {
+                    this.delete(uids[i], true)
+                    this.set(uids[i]) // set as new
+                }
+            }
+
+            // in case provided single array, change to string
+            if (isArray(uid)) {
+                if (uid.length === 1) {
+                    uid = uid.toString()
+                }
+            }
+
+            if (isArray(uid)) {
+                uid = uid.filter(z => this.ps[z] !== undefined)
+                // sort uid in order initialy declared!
+                var checkPSOrder = this.checkPSOrder()
+                if (checkPSOrder.length) {
+                    uid = checkPSOrder.map(z => {
+                        if (indexOf(uid, z.id) !== -1) return z.id
+                        else return null
+                    }).filter(n => !!n)
+                }
+
+                var multiPromise = []
+                for (var i = 0; i < uid.length; i++) {
+                    // get ps copy before reset
+                    this.ps[uid[i]].processing = true
+                    this.ps = Object.assign({}, this.ps)
+                    this.lastUID = uid[i]// update last ref
+                    multiPromise.push(this.$get)
+                    reset([uid[i]]) // set as new
+                }
+
+                // NOTE for multi promise callback, we have to resolve data using our own logic, since we do know intent of this data!
+
+                Promise.all(multiPromise).then(z => {
+                    // console.log('multiPromise', this.ps)
+                    // NOTE we cannot resolve here, we do not know intent of each data
+                    cb(z)
+                }, err => {
+                    // set reject reject all if any fail
+                    times(uid.length, inx => {
+                        this.reject(uid[inx], err)
+                    })
+                })
+            } else {
+                uid = this._getLastRef(uid)
+                this.ps[uid].processing = true
+                this.ps = Object.assign({}, this.ps)
+
+                // for one promise callback we can resolve date here, since provided callback is our new data
+                this.$get.then(z => {
+                    try {
+                        const d = cb(z) || null
+                        this.resolve(uid, d) // set new resolve for this uid
+                    } catch (err) {
+                        this.reject(uid, err) // set new reject for this uid
+                    }
+                }, err => {
+                    const isInvalid = (err || {}).invalid
+                    // NOTE donot pipe dont this promise if have indernal `invalid` internal error
+                    if (isInvalid) {
+                        cb(err)
+                        if (this.showRejects) {
+                            notify.ulog(err, true)
+                        }
+                        return
+                    }
+
+                    try {
+                        const d = cb(err) || null
+                        this.reject(uid, d)
+                    } catch (_err) {
+                        const dd = cb(_err)
+                        this.reject(uid, dd)
+                    }
+                })
+
+                reset([ uid ]) // set as new
+            }
+            return this
+        }
+
+        /**
+         * @$get
+         * resolve current promise, require last uid state, or use `this.ref`
+         */
+        get $get() {
+            const uid = this.lastUID
+            if (!uid) {
+                const msg = `[$get] lastUID referenc not set, use ref(uid) to set it, nothing done`
+                return Promise.reject({ invalid: true, message: msg })
+                // .catch(err => {
+                //     if (this.debug) notify.ulog(err, true)
+                // })
+            }
+
+            if (!this.ps[uid]) {
+                const msg = `[$get] no promise available for this id ${uid}`
+                return Promise.reject({ invalid: true, message: msg })
+                // .catch(err => {
+                //     if (this.debug) notify.ulog(err, true)
+                // })
+            }
+            this.testUID(uid)
+
+            if (!this.isPromise(this.ps[uid].p)) {
+                const msg = `[$get] last UID ${uid} is not a promise, or defer not set`
+                return Promise.reject({ invalid: true, message: msg })
+                // .catch(err => {
+                //     if (this.debug) notify.ulog(err, true)
+                // })
+            }
+
+            /// //////////////////////////
+            // update resolve/reject
+
+            delete this.ps[uid].processing
+            /// /////////////
+            this.updatePS(true)
+
+            return this.ps[uid].p.then(z => {
+                this.delete(uid, true) // delete it and reset same uid with ready resolved data
+
+                return z
+            }, err => {
+                this.delete(uid, true) // delete it and reset same uid with ready reject data
+                return err
+            })
+        }
+
+        /**
          * @consume
          * combine external promise with Xpromise
          * `extPromise` unresolve provide external promise
@@ -101,6 +250,7 @@ module.exports = (notify) => {
 
             if (!this.ps[uid]) {
                 this.ps[uid] = {}
+                this.ps[uid].timestamp = new Date().getTime()
                 this.ps[uid].consume = extPromise
                 this.ps = Object.assign({}, this.ps)
             } else {
@@ -122,14 +272,14 @@ module.exports = (notify) => {
          * set new promise
          * `uid`
          */
-        set(uid) {
+        set(uid, relative = true, update = true) {
             uid = this._getLastRef(uid)
 
             // when setting force to delete any existing promises
-            this.delete(uid, true)
+            if (relative) this.delete(uid, true)
 
             this.ps[uid] = 'set'
-            this.ps = Object.assign({}, this.ps)
+            if (update) this.ps = Object.assign({}, this.ps)
             return this
         }
 
@@ -142,7 +292,7 @@ module.exports = (notify) => {
             uid = this._getLastRef(uid)
 
             if (!this.ps[uid]) {
-                if (this.debug) notify.ulog(`[reject] uid: ${uid} does not exist, setting as new!`)
+                //   if (this.debug) notify.ulog(`[reject] uid: ${uid} does not exist, setting as new!`)
                 this.set(uid)
                 // return this
             }
@@ -159,8 +309,10 @@ module.exports = (notify) => {
 
             this.ps[uid].v = false
             this.ps[uid].entity = 'data'
+            this.ps[uid].timestamp = new Date().getTime()
             if (data !== null) this.ps[uid].data = data
             this.ps = Object.assign({}, this.ps)
+
             return this
         }
 
@@ -173,7 +325,7 @@ module.exports = (notify) => {
             uid = this._getLastRef(uid)
 
             if (!this.ps[uid]) {
-                if (this.debug) notify.ulog(`[resolve] uid: ${uid} does not exist, setting as new!`)
+                //  if (this.debug) notify.ulog(`[resolve] uid: ${uid} does not exist, setting as new!`)
                 this.set(uid)
                 // return this
             }
@@ -190,8 +342,39 @@ module.exports = (notify) => {
 
             this.ps[uid].v = true
             this.ps[uid].entity = 'data'
+            this.ps[uid].timestamp = new Date().getTime()
             if (data !== null) this.ps[uid].data = data
             this.ps = Object.assign({}, this.ps)
+
+            return this
+        }
+
+        /**
+         * @delay
+         * works just like setTimeout, but allows to track the process
+         * `cb`: must pass callback with what you want to delay
+         * `time`: defauld time in ms is 100
+         * `uid`: pass uid or last will be used
+         */
+        delay(cb, time = 100, uid) {
+            if (!isFunction(cb)) {
+                if (this.debug) notify.ulog(`[delay] cb must be a function`, true)
+                return this
+            }
+
+            uid = this._getLastRef(uid)
+            if (isEmpty(this.delayCB[uid])) {
+                this.delayCB[uid] = []
+            }
+            const p = (() => {
+                return new Promise((resolve, reject) => {
+                    setTimeout(() => {
+                        cb()
+                        resolve(true)
+                    }, time)
+                })
+            })()
+            this.delayCB[uid].push(p)
             return this
         }
 
@@ -204,33 +387,48 @@ module.exports = (notify) => {
         asPromise(uid, allowPipe) {
             uid = this._getLastRef(uid)
 
+            const _continue = () => {
+                if (!this.processing(uid, true)) {
+                    return Promise.reject(`[asPromise] uid ${uid} already processed once before, unless this uid is your relative base which you havent declared`, true)
+                }
+
+                var rel = this._resolveAllRelativeAS(uid)
+                if (rel !== null) return rel
+                else {
+                    return this.ps[uid].p.then(z => {
+                        this.delete(uid, true)
+                        console.log('aspromise', z)
+                        this._initiatePiping(uid, true, z, allowPipe) // conditionally enable piping
+                        return Promise.resolve(z)
+                    }, err => {
+                        this.delete(uid, true)
+                        this._initiatePiping(uid, false, err, allowPipe) // conditionally enable piping
+                        if (this.showRejects) {
+                            notify.ulog({ message: 'asPromise err', error: err }, true)
+                        }
+                        return Promise.reject(err)
+                    })
+                }
+            }
+
             if (!this.exists(uid, true)) {
                 return Promise.reject(`[asPromise] uid ${uid} doesnt exist or already resolved and deleted`)
             }
 
-            if (!this.processing(uid, true)) {
-                return Promise.reject(`[asPromise] uid ${uid} already processed once before, unless this uid is your relative base which you havent declared`, true)
-            }
-
-            var rel = this._resolveAllRelativeAS(uid)
-            if (rel !== null) return rel
-            else {
-                return this.ps[uid].p.then(z => {
-                    this.delete(uid, true)
-                    this._initiatePiping(uid, true, z, allowPipe) // conditionally enable piping
-                    return Promise.resolve(z)
+            if (isArray(this.delayCB[uid]) && !isEmpty(this.delayCB[uid])) {
+                return Promise.all(this.delayCB[uid]).then(z => {
+                    // slight delay required
+                    delete this.delayCB[uid]
+                    return this.whenTrue(100, this.ps[uid] !== undefined).then(z => _continue(uid))
                 }, err => {
-                    this.delete(uid, true)
-                    this._initiatePiping(uid, false, err, allowPipe) // conditionally enable piping
-                    if (this.showRejects) {
-                        notify.ulog({ message: 'asPromise err', error: err }, true)
-                    }
+                    delete this.delayCB[uid]
+                    return Promise.reject(err)
+                })
+            } else {
+                return this.whenTrue(100, this.ps[uid] !== undefined).then(z => _continue(uid), err => {
                     return Promise.reject(err)
                 })
             }
-            // .catch(err => {
-            //     if (this.debug) notify.ulog({ message: `unhandled rejection`, err })
-            // })
         }
 
         /**
@@ -244,63 +442,78 @@ module.exports = (notify) => {
          */
         onReady(cb, errCB, uid, allowPipe) {
             uid = this._getLastRef(uid)
+            const _continue = (uid) => {
+                try {
+                    this.testUID(uid)
+                } catch (err) {
+                    notify.ulog(err, true)
+                }
 
-            try {
-                this.testUID(uid)
-            } catch (err) {
-                notify.ulog(err, true)
-            }
+                if (!this.exists(uid, true)) {
+                    var msg = `[onReady] uid ${uid} doesnt exist or already resolved and deleted`
+                    if (typeof errCB === 'function') errCB(msg)
+                    return this
+                }
 
-            if (!this.exists(uid, true)) {
-                var msg = `[onReady] uid ${uid} doesnt exist or already resolved and deleted`
-                if (typeof errCB === 'function') errCB(msg)
-                return false
-            }
+                if (!this.validPromise(this.ps[uid])) {
+                    if (this.debug) notify.ulog(`[onReady] promise uid: ${uid} is invalid`, true)
+                    var errMessage = `[onReady] promise uid: ${uid} is invalid`
 
-            if (!this.validPromise(this.ps[uid])) {
-                if (this.debug) notify.ulog(`[then] promise uid: ${uid} is invalid`, true)
-                var errMessage = `[then] promise uid: ${uid} is invalid`
+                    if (typeof errCB === 'function') errCB(errMessage)
+                    return this
+                }
 
-                if (typeof errCB === 'function') errCB(errMessage)
-                return false
-            }
+                if (!this.processing(uid, true)) {
+                    var msg = `[onReady] uid ${uid} already processed once before`
+                    if (typeof errCB === 'function') errCB(msg)
+                    return this
+                }
 
-            if (!this.processing(uid, true)) {
-                var msg = `[onReady] uid ${uid} already processed once before`
-                if (typeof errCB === 'function') errCB(msg)
-                return false
-            }
+                var rel = this._resolveAllRelativeAS(uid, cb, errCB)
+                if (rel !== null) return rel
+                else {
+                    this.ps[uid].p.then((v) => {
+                        this.delete(uid, true)
 
-            var rel = this._resolveAllRelativeAS(uid, cb, errCB)
-            if (rel !== null) return rel
-            else {
-                this.ps[uid].p.then((v) => {
-                    this.delete(uid, true)
-
-                    if (isFunction(cb)) {
-                        try {
-                            var cbData = cb(v) || v
-                            this._initiatePiping(uid, true, cbData, allowPipe) // conditionally enable piping
-                        } catch (err) {
-                            this._initiatePiping(uid, false, { error: err }, allowPipe) // conditionally enable piping
+                        if (isFunction(cb)) {
+                            try {
+                                var cbData = cb(v) || v
+                                this._initiatePiping(uid, true, cbData, allowPipe) // conditionally enable piping
+                            } catch (err) {
+                                this._initiatePiping(uid, false, { error: err }, allowPipe) // conditionally enable piping
+                            }
                         }
-                    }
+                    }, err => {
+                        this.delete(uid, true)
+
+                        if (isFunction(errCB)) {
+                            try {
+                                var cbData = errCB(err) || err
+                                this._initiatePiping(uid, false, cbData, allowPipe) // conditionally enable piping
+                            } catch (err) {
+                                this._initiatePiping(uid, false, { error: err }, allowPipe) // conditionally enable piping
+                            }
+                        }
+
+                        if (this.showRejects) {
+                            notify.ulog({ message: 'onReady err', error: err }, true)
+                        }
+                    })
+                    return this
+                }
+            }
+            if (isArray(this.delayCB[uid]) && !isEmpty(this.delayCB[uid])) {
+                Promise.all(this.delayCB[uid]).then(z => {
+                    // slight delay required
+                    delete this.delayCB[uid]
+                    return this.whenTrue(100, this.ps[uid] !== undefined).then(z => _continue(uid))
                 }, err => {
-                    this.delete(uid, true)
-
-                    if (isFunction(errCB)) {
-                        try {
-                            var cbData = errCB(err) || err
-                            this._initiatePiping(uid, false, cbData, allowPipe) // conditionally enable piping
-                        } catch (err) {
-                            this._initiatePiping(uid, false, { error: err }, allowPipe) // conditionally enable piping
-                        }
-                    }
-
-                    if (this.showRejects) {
-                        notify.ulog({ message: 'onReady err', error: err }, true)
-                    }
+                    delete this.delayCB[uid]
+                    return Promise.reject(err)
                 })
+                return this
+            } else {
+                this.whenTrue(100, this.ps[uid] !== undefined).then(z => _continue(uid))
                 return this
             }
         }
@@ -318,6 +531,8 @@ module.exports = (notify) => {
 
                 if (!(this.ps[k] || {}).processing) {
                     this.ps[k].processing = true
+                    //   delete this.ps[k].hold
+                    this.ps[k].timestamp = new Date().getTime()
                     updated = true
                 }
                 if (!proms) continue
@@ -333,6 +548,45 @@ module.exports = (notify) => {
             this.rejects = []// unset
             this.lastUID = null
             return promises
+        }
+
+        /**
+         * @whenTrue
+         * resolve on ok, only resolves to true
+         * `maxWait` time in ms, max time to wait for something or fail
+         * `ok`: when true, resolve!
+         *
+         */
+        whenTrue(maxWait, ok) {
+            return new Promise((resolve, reject) => {
+                var checkEvery = 20
+                maxWait = maxWait !== undefined ? maxWait : 100
+                var counter = 0
+                var timer = setInterval(() => {
+                    // resolve when either meets true
+                    if (ok === true || counter >= maxWait) {
+                        clearInterval(timer)
+                        resolve(true)
+                        return
+                    }
+                    counter = counter + checkEvery
+                }, checkEvery)
+            })
+        }
+        /**
+         * @checkPSOrder
+         * check promise order by `timestamp`
+         * return promise uids with timestemp order
+         */
+        checkPSOrder() {
+            if (isEmpty(this.ps)) return []
+            var order = reduce(cloneDeep(this.ps), (n, el, k) => {
+                n.push({ id: k, timestamp: el.timestamp })
+                return n
+            }, [])
+            return order.sort((a, b) => {
+                return a.timestamp - b.timestamp
+            })
         }
 
         /**
@@ -468,8 +722,12 @@ module.exports = (notify) => {
          */
         processing(uid, relative = true) {
             if (this.ps[uid]) {
+                // do not process it holding the que
+                // if (this.ps[uid].hold) return false
+
                 if (!(this.ps[uid] || {}).processing) {
                     this.ps[uid].processing = true
+                    //  this.ps[uid].timestamp = new Date().getTime()
                     if (relative) this.relativeProcessing(uid)
                     this.ps = Object.assign({}, this.ps)
                 }
@@ -514,6 +772,7 @@ module.exports = (notify) => {
                     if (this.validPromise(this.ps[k])) {
                         if (!(this.ps[k] || {}).processing) {
                             this.ps[k].processing = true
+                            //  this.ps[k].timestamp = new Date().getTime()
                             this.ps[k].entity = 'data'
                             updated = true
                         }
@@ -544,8 +803,8 @@ module.exports = (notify) => {
                             return self[`_xpromise`][_prop]
                         },
                         set: function(val) {
-                            self[`_xpromise`][_prop] = val
                             if (self.promiseCBList[_prop]) {
+                                if ((val || {}).copy) return
                                 var newVal = (val || {}).v
                                 var processing = (val || {}).processing
                                 var data = (val || {}).data || null
@@ -553,8 +812,10 @@ module.exports = (notify) => {
 
                                 if ((newVal === true || newVal === false) && processing === true) {
                                     if (!external) self.promiseCBList[_prop](_prop, newVal, data)
+                                    delete (val || {}).processing
                                 }
                             }
+                            self[`_xpromise`][_prop] = val
                             //  notify.ulog({ message: 'new value set', prop: _prop, value: val })
                         },
                         enumerable: true,
@@ -585,6 +846,7 @@ module.exports = (notify) => {
                 if (this.isPromise(v[k])) continue
 
                 if (this.validPromise(v[k])) {
+                    // initiate callback to resolve or reject
                     if (v[k].processing === true) {
                         this.xpromise[k] = Object.assign({}, v[k])
                         continue
@@ -598,11 +860,6 @@ module.exports = (notify) => {
                             } else {
                                 this.xpromise[k] = Object.assign({}, { v: v[k].v }, v[k])
                             }
-                        } else {
-                            // if (this.allowPipe) {
-                            //     // update external, this value will be issued from `asPromise` or `onReady`
-                            //     this.xpromise[k] = Object.assign({}, { v: v[k].v }, v[k])
-                            // }
                         }
                     }
 
@@ -620,6 +877,7 @@ module.exports = (notify) => {
                                 v[k].processing = null
                                 v[k].external = true
                                 v[k].entity = null
+
                                 delete v[k].consume
                             }
 
@@ -642,6 +900,7 @@ module.exports = (notify) => {
                             var listener = this.xPromiseListener(k)
                             listener[k] = 'set'
                             v[k] = {
+                                // timestamp: new Date().getTime(), // to track que orders
                                 p: p,
                                 processing: null, // in case we call multiples of then this will make sure it can only be called once!
                                 v: listener[k],
@@ -716,6 +975,8 @@ module.exports = (notify) => {
                 this.testUID(uid)
                 if (uid) this.lastUID = uid
                 if (!uid && this.lastUID) uid = this.lastUID
+
+                // TODO not sure if toDelete will cause issue with this
 
                 if (this.promiseCBList[uid]) {
                     delete this.promiseCBList[uid]

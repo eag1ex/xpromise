@@ -5,10 +5,10 @@
 
 #### Description
 Smart Javascript Promise Manager with stream piping support, similar to Q/defer, uses prototype getter/setter with dynamic callbacks to set resolve states.
-- Manage and control all `resolve()` and `reject()` promises.
-- Group promises `relative` to main `job` and resolving all as part of one.
-- Easy to maintain all promises in one framework
-- Manage async functionality with `.pipe(d=>).pipe(d=>)`, allows piping streamed events
+* Manage and control all `resolve()` and `reject()` promises.
+* Group promises `relative` to main `job` and resolving all as part of one.
+* Easy to maintain all promises in one framework
+* Manage async functionality with `.pipe(d=>).pipe(d=>)`, allows piping streamed events
 
 ###### Why use it?
 - Your application is promise, async driven
@@ -16,23 +16,39 @@ Smart Javascript Promise Manager with stream piping support, similar to Q/defer,
 
 #### Methods
 * `defer(uid)`: Set new promise with its uniq ref/id
+
 * `set(uid)` : Reset previously set promise again
+
 * `resolve(uid, data)`: will set resolve() with `onReady` or `asPromise().then(..)`, `data` is optional,  when not set will return `true`
+
 * `reject(uid, data)`: same as `resolve` but return as rejecte(), `data` is optional, when not set will return `false`
+
+* `get(cb=>, [uid])` : you want to tap in to resolved promise, update it to return modified data  `onReady` or `asPromise`
+    - `[uid]`: provide single or multiple uids to resolve. Single [uid]< 1 uid provided you must return it, so it can be resolved automaticly, example `cb=>{return data}`. If [uid1,uid2] multiples provided, do own logic calculation, then resolve(uid,data)/reject(uid,data) each `uid` with desired data. No need to return since you are handling each your self! Examples provided in `./examples/xpromise-example.1.js`
+
 * `ref(uid)` : will set uid/ref and continue on path of that job
+
 * `onReady(done=>,err=>,uid)` return data as promise from callback. Additionaly when using pipe `opts.allowPipe=true` you can further munipupate data, checkout examples at: `./examples/xpromise-example.1.js`
+    
 * `asPromise(uid)`: will return as promise: asPromise().then(d=>...)
+
 * `all`: variable will return all current promises, so you can assign it to Promise.all(all)...
+
 * `pending`: variable return index of currently active promises
+
 * `exists(uid)` : check if uid/ref exists, if promise exists!
+
 * `pipe(cb=>,uid)` :  Refers to extended XPipe class refer to `x.pipe.js`
     - pipe/stream jobs beond resolution (job consumption), very usefull when working in async environment
+
 * `initPipe(uid, initialData, resolution:bolean)` :  Xpipe can be used without Xpromise, if you are waiting for something before piping starts, its where you would use it.
     - `initialData`: provide data you want to start piping, 
     - `resolution` : you wish the pipe to `resolve()` or `reject()` provide `true` or `false`, default is `true`.
     - examples available at `$/ node ./examples/pipes-simple.js`
+
 * `pass(uid)` : specify before `.pipe()` if you want it to pass or fail, regardless, uid not needed 
 when chaining 
+
 * `fail(uid)`: opposite of `pass()`
 
 ##### Stack
@@ -48,26 +64,69 @@ when chaining
 * `$/ node ./examples/pipes-simple.js`
 * `$/ node ./examples/xpromise-example.1.js`
 
-````
- var Xpromise = require('../x.promise')()
+```
+   var Xpromise = require('../xpromise/x.promise')()
     const debug = true
-    const opts = { showRejects: true, // show reject message in console
+    const opts = {
+        // relSufix: '--', // preset default
+        showRejects: true, // show reject message in console
         allowPipe: true } // if set Xpipe is enabled and you can pipe stream results of each (base) job
     var uid = null
     const xp = new Xpromise(uid, opts, debug)
 
+    /**
+     * to create relational operation, make sure job number is the same with new sufix, `--{number}`
+     */
     var uid1 = '1233535' // base operation
     var uid1a = '1233535--1' // relational operation (note same number with sufix)
     var uid1b = '1233535--2'
 
+    const broker = (id) => {
+        const data = { broker: 'Pannama Bank', code: '007', agent: 'Boris', fee: 100 }
+        return xp.resolve(id, data)
+    }
+
+    /**
+     * transaction
+     */
     const transaction = (id) => {
         const data = { account: 'savings', balance: 10000, name: 'John Doe', bank: 'Swiss Bank', number: '000123456789' }
         xp.resolve(id, data)
-    }
 
-    const broker = (id) => {
-        const data = { broker: 'Pannama Bank', code: '007', agent: 'Boris', fee: 100 }
-        xp.resolve(id, data)
+        broker(uid1a)
+        /**
+         * @get
+         * dealing with single uid
+         * 1. update broker after transaction was updated
+         * 2. and again update transaction after broker
+         *
+         * You must return each new data to take effect, or null will be resolved!
+         */
+
+        // NOTE get `uid1a` < // broker
+        // .get(d => {
+        //     d.fee = 0
+        //     return d
+
+        // get `id` < // transaction
+        // }).get(d => {
+        //     d.balance = 500
+        //     return d
+        // }, id)
+
+        /**
+         * @get
+         * dealing with multiple uids [uid1,uid2,...]
+         * callback returns a promise with array of each uid, after handling data, you must resolve each or no data will be returned
+         */
+        // combine resolve, then and update `banker` and `transaction`
+        xp.get(d => {
+            var nData = merge.apply(null, d)
+            nData.balance = nData.balance - nData.fee - 500
+            delete nData.fee
+            xp.resolve(id, nData)
+                .resolve(uid1a, true) // NOTE update broker with no data, we need to return something to onReady
+        }, [id, uid1a]) // provide broker and transaction id
     }
 
     // security layer
@@ -81,56 +140,38 @@ when chaining
         .defer(uid1a)
         .defer(uid1b)
 
-    // NOTE simulate proxy
-    setTimeout(() => {
-        proxy(uid1b)
-    }, 500)
-
-    // NOTE simulate transaction
-    setTimeout(() => {
+    // NOTE simulate transaction, and wait for broker, then combine return
+    xp.delay(() => {
         transaction(uid1)
-    }, 1000)
+    }, 1000, uid1)
+    // NOTE simulate proxy
+        .delay(() => {
+            proxy(uid1b)
+        }, 1500, uid1b)
 
-    // NOTE simulate broker
-    setTimeout(() => {
-        broker(uid1a)
-    }, 1500)
-
-    // NOTE complete process once broker and transaction finished!
-    // all operations need to resolve in order to complete
-    // xp.asPromise(uid1).then(data => {
-    //     var d = merge.apply(null, data)
-    //     d.balance = d.balance - d.fee
-    //     delete d.fee
-    //     notify.ulog({ message: `process complete for job ${uid1}`, d })
-    // }, err => {
-    //     // something didnt resolve
-    //     notify.ulog({ err }, true)
-    // })
-    // NOTE onReady simirly as asPromise > it does return promise from callback, but you can further update data and send to pipe stream
+ 
+    // NOTE onReady similar to asPromise, returns promise from callback, but can further munipulate data and send to pipe stream
     xp.onReady(data => {
         var d = merge.apply(null, data)
-        d.balance = d.balance - d.fee
-        delete d.fee
-        notify.ulog({ message: `process complete for job ${uid1}`, d })
+        notify.ulog({ message: `[onReady] process complete for job ${uid1}`, d })
         return d
     }, err => {
         notify.ulog({ message: 'onReady err', err })
     }, uid1)
-        .pipe((d, err) => {
-            d.status = 'complete'
-            notify.ulog({ message: '[pipe] 1', d })
-            //  throw ('ups') // NOTE can handle errors
-            return d
-        })
+    xp.pipe((d, err) => {
+        d.status = 'complete'
+        notify.ulog({ message: '[pipe] 1', d })
+        //  throw ('ups') // NOTE can handle errors
+        return d
+    })
         .fail() // enforce reject()
         .pipe((d, err) => {
             err.status = 'error'
             notify.ulog({ message: '[pipe] 2', err }, true)
             return err
         })
-
-````
+    // .pipe().pipe() // and so on
+```
 
 ##### Features:
 * This application supports chaining

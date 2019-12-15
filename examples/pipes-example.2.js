@@ -5,7 +5,7 @@
  */
 module.exports = () => {
     const notify = require('../libs/notifications')()
-    const XPromise = require('../x.promise')(notify)
+    const XPromise = require('../xpromise/x.promise')(notify)
     const debug = true
     const opts = { showRejects: true, allowPipe: true }
     const Xpipe = new XPromise(null, opts, debug)
