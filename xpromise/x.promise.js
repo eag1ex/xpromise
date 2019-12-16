@@ -98,14 +98,12 @@ module.exports = (notify) => {
                 }
             }
 
-            // in case provided single array, change to string
-            if (isArray(uid)) {
-                if (uid.length === 1) {
-                    uid = uid.toString()
-                }
-            }
+            // in case of string
+            uid = [].concat(uid)
 
-            if (isArray(uid)) {
+            if (uid.length > 1) {
+                var primeUID = uid.length > 1 ? uid.filter(z => !this.validRelJob(z))[0] : uid[0]
+
                 uid = uid.filter(z => this.ps[z] !== undefined)
                 // sort uid in order initialy declared!
                 var checkPSOrder = this.checkPSOrder()
@@ -129,17 +127,29 @@ module.exports = (notify) => {
                 // NOTE for multi promise callback, we have to resolve data using our own logic, since we do know intent of this data!
 
                 Promise.all(multiPromise).then(z => {
-                    // console.log('multiPromise', this.ps)
-                    // NOTE we cannot resolve here, we do not know intent of each data
-                    cb(z)
+                    try {
+                        const d = cb(z) || null
+                        this.resolve(primeUID, d) // set new resolve for this uid
+                    } catch (err) {
+                        this.reject(primeUID, err) // set new reject for this uid
+                    }
                 }, err => {
+                    try {
+                        const d = cb(err) || null
+                        this.resolve(primeUID, d) // set new resolve for this uid
+                    } catch (err) {
+                        this.reject(primeUID, err) // set new reject for this uid
+                    }
+
                     // set reject reject all if any fail
                     times(uid.length, inx => {
                         this.reject(uid[inx], err)
                     })
                 })
             } else {
+                uid = (uid || '').toString()
                 uid = this._getLastRef(uid)
+                this.testUID(uid)
                 this.ps[uid].processing = true
                 this.ps = Object.assign({}, this.ps)
 

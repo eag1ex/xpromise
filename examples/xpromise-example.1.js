@@ -5,7 +5,7 @@
  */
 module.exports = () => {
     const notify = require('../libs/notifications')()
-    const { merge, times } = require('lodash')
+    const { merge } = require('lodash')
     var Xpromise = require('../xpromise/x.promise')()
     const debug = true
     const opts = {
@@ -31,7 +31,11 @@ module.exports = () => {
      * transaction
      */
     const transaction = (id) => {
-        const data = { account: 'savings', balance: 10000, name: 'John Doe', bank: 'Swiss Bank', number: '000123456789' }
+        const data = { account: 'savings',
+            balance: 10000,
+            name: 'John Doe',
+            bank: 'Swiss Bank',
+            number: '000123456789' }
         xp.resolve(id, data)
 
         broker(uid1a)
@@ -49,7 +53,7 @@ module.exports = () => {
         //     d.fee = 0
         //     return d
 
-        // get `id` < // transaction
+        // // get `id` < // transaction
         // }).get(d => {
         //     d.balance = 500
         //     return d
@@ -58,17 +62,15 @@ module.exports = () => {
         /**
          * @get
          * dealing with multiple uids [uid1,uid2,...]
-         * callback returns a promise with array of each uid, after handling data, you must resolve each or no data will be returned
          */
-        // combine resolve, then and update `banker` and `transaction`
+        // combine results, then update `banker` and `transaction`
         xp.get(d => {
             var nData = merge.apply(null, d)
             nData.balance = nData.balance - nData.fee - 500
             delete nData.fee
 
-            xp.resolve(id, nData) // NOTE must return new data for base job `uid1`
-            //  .resolve(uid1a, true) // NOTE update broker with no data, we need to return something to onReady
-        }, [id, uid1a]) // provide broker and transaction id
+            return nData // NOTE must return data to resolve it
+        }, [id, uid1a])
     }
 
     // security layer

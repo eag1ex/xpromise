@@ -23,8 +23,9 @@ Smart Javascript Promise Manager with stream piping support, similar to Q/defer,
 
 * `reject(uid, data)`: same as `resolve` but return as rejecte(), `data` is optional, when not set will return `false`
 
-* `get(cb=>, [uid])` : you want to tap in to resolved early promise, update it to return modified data  in `onReady` or `asPromise`
-    - `[uid]`: provide single or multiple uids to resolve. Single [uid]< 1 uid provided you must return it, so it can be resolved automaticly, example `cb=>{return data}`. If [uid1,uid2] multiples provided, do own logic calculation, then resolve(uid,data)/reject(uid,data) each `uid` with desired data. No need to return since you are handling each your self! Examples provided in `./examples/xpromise-example.1.js`
+* `get(cb=>, [uid])` : you want to resolve early, update and to return final data to `onReady` or `asPromise`
+    - `[uid] single`: callback data provides single item, do some logic calculation and return it so its data can be resolved.,  `./examples/xpromise-example.1.js`
+    - `[uid1,uid2,..] multiple`: callback data provides array from each uid, do some logic calculation and return it so its data can be resolved. `./examples/xpromise-example.1.js`
 
 * `delay(cb=>,timeDelay:ms, uid)` : do not use setTimeout with `get()` if you want to handle promise early before it hits `onReady` or `asPromise`, delay allows to track each uid and tells final call to wait until ready, provide your logic in delay callback as you would in setTimeout, spetify `timeDelay`< time to wait, and must provide uid for each main transaction. Examples provided in `./examples/xpromise-example.1.js`
 
@@ -67,7 +68,8 @@ when chaining
 * `$/ node ./examples/xpromise-example.1.js`
 
 ```
-   var Xpromise = require('../xpromise/x.promise')()
+  const { merge } = require('lodash')
+    var Xpromise = require('../xpromise/x.promise')()
     const debug = true
     const opts = {
         // relSufix: '--', // preset default
@@ -92,7 +94,11 @@ when chaining
      * transaction
      */
     const transaction = (id) => {
-        const data = { account: 'savings', balance: 10000, name: 'John Doe', bank: 'Swiss Bank', number: '000123456789' }
+        const data = { account: 'savings',
+            balance: 10000,
+            name: 'John Doe',
+            bank: 'Swiss Bank',
+            number: '000123456789' }
         xp.resolve(id, data)
 
         broker(uid1a)
@@ -110,7 +116,7 @@ when chaining
         //     d.fee = 0
         //     return d
 
-        // get `id` < // transaction
+        // // get `id` < // transaction
         // }).get(d => {
         //     d.balance = 500
         //     return d
@@ -119,16 +125,15 @@ when chaining
         /**
          * @get
          * dealing with multiple uids [uid1,uid2,...]
-         * callback returns a promise with array of each uid, after handling data, you must resolve each or no data will be returned
          */
-        // combine resolve, then and update `banker` and `transaction`
+        // combine results, then update `banker` and `transaction`
         xp.get(d => {
             var nData = merge.apply(null, d)
             nData.balance = nData.balance - nData.fee - 500
             delete nData.fee
-            xp.resolve(id, nData)
-                .resolve(uid1a, true) // NOTE update broker with no data, we need to return something to onReady
-        }, [id, uid1a]) // provide broker and transaction id
+
+            return nData // NOTE must return data to resolve it
+        }, [id, uid1a])
     }
 
     // security layer
@@ -151,7 +156,7 @@ when chaining
             proxy(uid1b)
         }, 1500, uid1b)
 
- 
+
     // NOTE onReady similar to asPromise, returns promise from callback, but can further munipulate data and send to pipe stream
     xp.onReady(data => {
         var d = merge.apply(null, data)
