@@ -237,13 +237,17 @@ module.exports = (notify) => {
         /**
          * @consume
          * combine external promise with Xpromise
-         * `extPromise` unresolve provide external promise
+         * `extPromise` unresolved, provide external promise. Supports detection if data is a promise and converts to Promise if its not
          */
         consume(uid, extPromise) {
             uid = this._getLastRef(uid)
+
             if (!this.isPromise(extPromise)) {
-                if (this.debug) notify.ulog(`[consume] external promise is not valid to include with XPromise framework`, true)
-                return this
+                if (this.debug) notify.ulog(`[consume] extPromise, will use resolve() instead`)
+                //  return this
+                // note if not a promsie make it one!
+                const normalData = extPromise
+                return this.resolve(uid, normalData)
             }
 
             if (!this.ps[uid]) {

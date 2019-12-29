@@ -27,6 +27,12 @@ module.exports = () => {
         return xp.resolve(id, data)
     }
 
+    // security layer
+    const proxy = (id) => {
+        const data = { secret_code: 'xpr3457689', verified: true }
+        xp.resolve(id, data)
+    }
+
     /**
      * transaction
      */
@@ -64,19 +70,13 @@ module.exports = () => {
          * dealing with multiple uids [uid1,uid2,...]
          */
         // combine results, then update `banker` and `transaction`
-        xp.get(d => {
-            var nData = merge.apply(null, d)
-            nData.balance = nData.balance - nData.fee - 500
-            delete nData.fee
+            .get(d => {
+                var nData = merge.apply(null, d)
+                nData.balance = nData.balance - nData.fee
+                delete nData.fee
 
-            return nData // NOTE must return data to resolve it
-        }, [id, uid1a])
-    }
-
-    // security layer
-    const proxy = (id) => {
-        const data = { secret_code: 'xpr3457689', verified: true }
-        xp.resolve(id, data)
+                return nData // NOTE must return data to resolve it
+            }, [id, uid1a])
     }
 
     // NOTE assing promise to each ID

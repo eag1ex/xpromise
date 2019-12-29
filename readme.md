@@ -10,6 +10,10 @@ Smart Javascript Promise Manager with stream piping support, similar to Q/defer,
 * Easy to maintain all promises in one framework
 * Manage async functionality with `.pipe(d=>).pipe(d=>)`, allows piping streamed events
 
+#### What is XPipe ?
+Pipe `.pipe((d)=>).pipe(...)` is an event that returns a promise as a callback. Every pipe call creates new defer promise to wait for next pipe call. Within each `pipe` callback you can return new data for the next pipe event. `.pipe(null,uid).then(d=>), prm.pipe().then` You can also return pipe as promise, but cannot return new data for the next pipe, until you change it back to callback method, 
+example: `.pipe(null,uid).then(d=>), prm.pipe((d)=>).pipe(...`
+
 ###### Why use it?
 - Your application is promise, async driven
 
@@ -41,13 +45,14 @@ Smart Javascript Promise Manager with stream piping support, similar to Q/defer,
 
 * `exists(uid)` : check if uid/ref exists, if promise exists!
 
-* `pipe(cb=>,uid)` :  Refers to extended XPipe class refer to `x.pipe.js`
-    - pipe/stream jobs beond resolution (job consumption), very usefull when working in async environment
-
 * `initPipe(uid, initialData, resolution:bolean)` :  Xpipe can be used without Xpromise, if you are waiting for something before piping starts, its where you would use it.
     - `initialData`: provide data you want to start piping, 
     - `resolution` : you wish the pipe to `resolve()` or `reject()` provide `true` or `false`, default is `true`.
     - examples available at `$/ node ./examples/pipes-simple.js`
+
+* `pipe(cb=>,uid)` :  Refers to extended XPipe class refer to `x.pipe.js`
+    - pipe/stream jobs beond resolution (job consumption), very usefull when working in async environment
+    - every pipe if using without XPromise need to be initiated first with: `initPipe`, take a look at examples in `./examples/pipes..`
 
 * `pass(uid)` : specify before `.pipe()` if you want it to pass or fail, regardless, uid not needed 
 when chaining 

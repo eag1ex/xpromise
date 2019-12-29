@@ -133,8 +133,9 @@ module.exports = (Xpromise, notify) => {
          * `uid` will check for last used uid if not provided
          * `firstPipedData` only provide this initialy at first pipe sequence of this job id
          * `resolveReject` is this a resolve or reject
+         * `endPipe` TODO add option for enc pipe sequence
          * */
-        pipe(cb, uid, firstPipedData = null, resolution = null) {
+        pipe(cb, uid, firstPipedData = null, resolution = null, endPipe) {
             uid = this._getLastRef(uid)
 
             if (this.pipeIndex[uid] === undefined) this.pipeIndex[uid] = 0
@@ -170,12 +171,12 @@ module.exports = (Xpromise, notify) => {
                 var pipeID = `${uid}-${this.jobIndex(uid)}`
 
                 if (isFunction(cb)) {
-                    nextPipe.then(v => {
+                    nextPipe.then(async(v) => {
                         try {
                             var resol = passFailResolution !== null ? passFailResolution : true
                             var d
-                            if (resol) d = cb(v)
-                            else d = cb(null, v)
+                            if (resol) d = await cb(v)
+                            else d = await cb(null, v)
 
                             this.callPipeResolution(pipeID, resol, d, uid)
                         } catch (err) {
@@ -183,12 +184,12 @@ module.exports = (Xpromise, notify) => {
                             // return rejection if callback error
                             this.callPipeResolution(pipeID, false, { error: err }, uid)
                         }
-                    }, err => {
+                    }, async(err) => {
                         try {
                             var resol = passFailResolution !== null ? passFailResolution : false
                             var d
-                            if (resol) d = cb(err)
-                            else d = cb(null, err)
+                            if (resol) d = await cb(err)
+                            else d = await cb(null, err)
                             this.callPipeResolution(pipeID, resol, d, uid)
                         } catch (err) {
                             notify.ulog({ error: err, uid, message: 'tip: make sure you handle reject resolution' }, true)
@@ -406,6 +407,10 @@ module.exports = (Xpromise, notify) => {
             }
         }
 
+        pipeExists(uid) {
+            if (this.pipeList[uid]) return true
+            return false
+        }
         /**
          * @getPipe
          * get pipe by index, `this.ps[uid].pipes[index]`
