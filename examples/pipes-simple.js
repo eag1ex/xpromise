@@ -35,6 +35,7 @@ x.pipe(d => {
         notify.ulog({ d })
         return d
     })
+    // .end(jobID1) // NOTE would end future pipe  for this uid
 
 setTimeout(() => {
     x.pipe(d => {

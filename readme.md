@@ -58,6 +58,7 @@ example: `.pipe(null,uid).then(d=>), prm.pipe((d)=>).pipe(...`
 when chaining 
 
 * `fail(uid)`: opposite of `pass()`
+* `end(uid)` : will end pipe sequence at given time and future, and delete all data for that uid.
 
 ##### Stack
  - Lodash, ES6, Javascript, Node.js, ES6 Promise
