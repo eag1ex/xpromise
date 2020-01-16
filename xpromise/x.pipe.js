@@ -5,7 +5,7 @@
  */
 module.exports = (Xpromise, notify) => {
     if (!notify) notify = require('../libs/notifications')()
-    const { isArray, isEmpty, isObject, isFunction, reduce } = require('lodash')
+    const { isArray, isEmpty, isObject, isFunction, reduce, cloneDeep, sum } = require('lodash')
 
     if (!Xpromise) Xpromise = function() { } // allow use if xpromise not set
 
@@ -189,7 +189,6 @@ module.exports = (Xpromise, notify) => {
 
                             // NOTE will call only when `end()` was initiated
                             this.endPiping(uid)
-
                             this.callPipeResolution(pipeID, resol, d, uid)
                         } catch (err) {
                             notify.ulog({ error: err, uid, message: 'tip: make sure you handle reject resolution' }, true)
@@ -216,6 +215,9 @@ module.exports = (Xpromise, notify) => {
                             return
                         }
                         try {
+                            // NOTE will call only when `end()` was initiated
+                            this.endPiping(uid)
+
                             var resol = passFailResolution !== null ? passFailResolution : true
 
                             this.callPipeResolution(pipeID, resol, v, uid)
@@ -263,8 +265,15 @@ module.exports = (Xpromise, notify) => {
             }, uid)
             return this
         }
+
+        /**
+         * @endPiping
+         * initiated from `pipe` method when `end()` was called to `set` pipes
+         * @param {*} uid
+         */
         endPiping(uid) {
             if (this.pipeMarkDel[uid] === 'set') {
+                const before = this.testDeleted()
                 this.pipeCBList = reduce(this.pipeCBList, (n, el, k) => {
                     if (k.indexOf(uid) === -1) n[k] = el
                     return n
@@ -283,7 +292,26 @@ module.exports = (Xpromise, notify) => {
                 delete this.pipeIndex[uid]
                 delete this._startPipeCBs[uid]
                 this.pipeMarkDel[uid] = 'used'
+
+                const after = this.testDeleted()
+                if (after <= 1) {
+                    console.log('[endPiping] before / after', uid, before, after)
+                }
             }
+        }
+
+        testDeleted() {
+            const pipeCBList = Object.keys(cloneDeep(this.pipeCBList)).length || 0
+            const pipePassFail = Object.keys(cloneDeep(this.pipePassFail)).length || 0
+            const pipeUIDindex = Object.keys(cloneDeep(this.pipeUIDindex)).length || 0
+            const pipeIndex = Object.keys(cloneDeep(this.pipeIndex)).length || 0
+            const _startPipeCBs = Object.keys(cloneDeep(this._startPipeCBs)).length || 0
+            const pipeMarkDel = Object.keys(cloneDeep(this.pipeMarkDel)).length || 0
+            const allIndexesArr = [].concat(pipeCBList, pipePassFail, pipeUIDindex, pipeIndex, _startPipeCBs, pipeMarkDel)
+            const total = sum(allIndexesArr)
+
+            if (total === 0) return 0
+            return Math.round(total / 6)
         }
 
         get pipeList() {
