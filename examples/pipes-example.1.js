@@ -56,5 +56,6 @@ module.exports = () => {
             notify.ulog({ event: '[pipe] 5', data: d })
             return d
         }, jobID)
+            .end()// end this pipe sequence and delete all data
     }, 6000)
 }

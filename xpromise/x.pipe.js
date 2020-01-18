@@ -188,7 +188,7 @@ module.exports = (Xpromise, notify) => {
                             else d = await cb(null, v)
 
                             // NOTE will call only when `end()` was initiated
-                            this.endPiping(uid)
+                            this.endPipe(uid)
                             this.callPipeResolution(pipeID, resol, d, uid)
                         } catch (err) {
                             notify.ulog({ error: err, uid, message: 'tip: make sure you handle reject resolution' }, true)
@@ -196,11 +196,18 @@ module.exports = (Xpromise, notify) => {
                             this.callPipeResolution(pipeID, false, { error: err }, uid)
                         }
                     }, async(err) => {
+                        if (this.pipeMarkDel[uid] === 'used') {
+                            return
+                        }
                         try {
                             var resol = passFailResolution !== null ? passFailResolution : false
                             var d
                             if (resol) d = await cb(err)
                             else d = await cb(null, err)
+
+                            // NOTE will call only when `end()` was initiated
+                            this.endPipe(uid)
+
                             this.callPipeResolution(pipeID, resol, d, uid)
                         } catch (err) {
                             notify.ulog({ error: err, uid, message: 'tip: make sure you handle reject resolution' }, true)
@@ -216,7 +223,7 @@ module.exports = (Xpromise, notify) => {
                         }
                         try {
                             // NOTE will call only when `end()` was initiated
-                            this.endPiping(uid)
+                            this.endPipe(uid)
 
                             var resol = passFailResolution !== null ? passFailResolution : true
 
@@ -227,9 +234,14 @@ module.exports = (Xpromise, notify) => {
                             notify.ulog({ error: err, uid, message: 'tip: make sure you handle reject resolution' }, true)
                         }
                     }, err => {
+                        if (this.pipeMarkDel[uid] === 'used') {
+                            return
+                        }
                         try {
                             var resol = passFailResolution !== null ? passFailResolution : false
                             this.callPipeResolution(pipeID, resol, err, uid)
+                            // NOTE will call only when `end()` was initiated
+                            this.endPipe(uid)
                             if (resol) return err
                             else return Promise.reject(err)
                         } catch (err) {
@@ -267,13 +279,13 @@ module.exports = (Xpromise, notify) => {
         }
 
         /**
-         * @endPiping
+         * @endPipe
          * initiated from `pipe` method when `end()` was called to `set` pipes
          * @param {*} uid
          */
-        endPiping(uid) {
+        endPipe(uid) {
             if (this.pipeMarkDel[uid] === 'set') {
-                const before = this.testDeleted()
+                //  const before = this.testDeleted()
                 this.pipeCBList = reduce(this.pipeCBList, (n, el, k) => {
                     if (k.indexOf(uid) === -1) n[k] = el
                     return n
@@ -289,29 +301,34 @@ module.exports = (Xpromise, notify) => {
                     return n
                 }, {})
 
+                this._pipeList = reduce(this._pipeList, (n, el, k) => {
+                    if (k.indexOf(uid) === -1) n[k] = el
+                    return n
+                }, {})
+
                 delete this.pipeIndex[uid]
                 delete this._startPipeCBs[uid]
                 this.pipeMarkDel[uid] = 'used'
 
-                const after = this.testDeleted()
-                if (after <= 1) {
-                    console.log('[endPiping] before / after', uid, before, after)
+                const totalJobs = Object.keys(this._pipeList).length
+                if (this.testDeleted() === totalJobs) {
+                    if (this.debug) notify.ulog(`[endPipe] all pipe reference for job #${uid} deleted`)
                 }
             }
         }
 
         testDeleted() {
+            const pipeList = Object.keys(cloneDeep(this.pipeList)).length || 0
             const pipeCBList = Object.keys(cloneDeep(this.pipeCBList)).length || 0
             const pipePassFail = Object.keys(cloneDeep(this.pipePassFail)).length || 0
             const pipeUIDindex = Object.keys(cloneDeep(this.pipeUIDindex)).length || 0
             const pipeIndex = Object.keys(cloneDeep(this.pipeIndex)).length || 0
             const _startPipeCBs = Object.keys(cloneDeep(this._startPipeCBs)).length || 0
             const pipeMarkDel = Object.keys(cloneDeep(this.pipeMarkDel)).length || 0
-            const allIndexesArr = [].concat(pipeCBList, pipePassFail, pipeUIDindex, pipeIndex, _startPipeCBs, pipeMarkDel)
-            const total = sum(allIndexesArr)
-
-            if (total === 0) return 0
-            return Math.round(total / 6)
+            const allIndexesArr = [].concat(pipeCBList, pipePassFail, pipeUIDindex, pipeIndex, _startPipeCBs, pipeMarkDel, pipeList)
+            const totalIndexes = sum(allIndexesArr)
+            if (totalIndexes === 0) return 0
+            return Math.round((totalIndexes / 6) / (pipeList || 1))
         }
 
         get pipeList() {

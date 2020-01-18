@@ -5,10 +5,15 @@ const debug = true
 const opts = { allowPipe: true } //
 const x = new XPromise(null, opts, debug)
 const jobID1 = 'job01'
-
+const jobID2 = 'job02'
 setTimeout(() => {
     var resolution = true // resolve()
     x.initPipe(jobID1, { type: 'bank transaction', processing: 0 }, resolution)
+}, 2000)
+
+setTimeout(() => {
+    var resolution = true // resolve()
+    x.initPipe(jobID2, { type: 'client transaction', processing: 0 }, resolution)
 }, 2000)
 
 const asyncData = (time = 2000, data) => {
@@ -18,6 +23,16 @@ const asyncData = (time = 2000, data) => {
         }, time)
     })
 }
+
+x.pipe(d => {
+    d.age = 50
+    d.job = x.lastUID
+    notify.ulog({ d })
+    d.index = 1
+    d.processing = 20
+    notify.ulog({ d, message: 'pipe 1' })
+    return d
+}, jobID2)
 
 x.pipe(d => {
     d.age = 50
@@ -59,5 +74,10 @@ setTimeout(() => {
         return d
     }, jobID1)
         .end()
+        // NOTE this one would never call, we already end that sequence with end()
+        // .pipe(d => {
+        //     console.log('ha?', d)
+        //     return d
+        // })
 }, 2000)
 /// pipe().pipe() on and on

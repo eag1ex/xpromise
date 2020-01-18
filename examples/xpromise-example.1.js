@@ -125,5 +125,6 @@ module.exports = () => {
             notify.ulog({ message: '[pipe] 2', err }, true)
             return err
         })
+    // .end()// end this pipe sequence and delete all data
     // .pipe().pipe() // and so on
 }

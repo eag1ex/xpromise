@@ -61,6 +61,7 @@ module.exports = () => {
             notify.ulog({ event: '[pipe] 5', data: d })
             return d
         })
+        .end()// end this pipe sequence and delete all data
 
     // fetchAPI('https://wtfismyip.com/json', jobID2, true).pipe(d => {
     //     d.pipeIndex = 1
