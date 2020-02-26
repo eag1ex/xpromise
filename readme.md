@@ -4,8 +4,8 @@
 
 
 #### Description
-Smart Javascript Promise Manager with stream piping support, similar to Q/defer, uses prototype getter/setter with dynamic callbacks to set resolve states.
-* Manage and control all `resolve()` and `reject()` promises.
+Smart Javascript Promise Manager with stream/event pipe support, similar to Q/defer. Uses prototype getter/setter with dynamic callbacks to set resolve states, (no setIntervals or timers!).
+* Manage and control all `resolve()` and `reject()` promise states.
 * Group promises `relative` to main `job` and resolving all as part of one.
 * Easy to maintain all promises in one framework
 * Manage async functionality with `.pipe(d=>).pipe(d=>)`, allows piping streamed events
