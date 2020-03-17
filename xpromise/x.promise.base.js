@@ -4,7 +4,7 @@
  * base logic and methods
  */
 module.exports = (notify) => {
-    if (!notify) notify = require('../libs/notifications')()
+    if (!notify) notify = require('notifyx')
     const { isEmpty, isArray, isObject, isString, isNumber, times, isFunction, reduce, cloneDeep } = require('lodash')
 
     class XPromiseBase {

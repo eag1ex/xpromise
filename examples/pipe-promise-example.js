@@ -1,8 +1,8 @@
-const notify = require('../libs/notifications')()
-const XPromise = require('../xpromise/x.promise')(notify)
+const notify = require('notifyx')
+const XPipe = require('../xpromise/x.pipe')(notify)
 const debug = true
 const opts = { allowPipe: true } //
-const x = new XPromise(null, opts, debug)
+const x = new XPipe(null, opts, debug)
 const jobID1 = 'job01'
 
 setTimeout(() => {

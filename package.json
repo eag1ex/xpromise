@@ -9,6 +9,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "notifyx": "git+ssh://git@eaglex_bitbucket:eag1ex/notifyx.git",
     "bash-color": "0.0.4",
     "eslint": "^6.7.2",
     "fetch": "^1.1.0",

@@ -1,14 +1,14 @@
 
 /**
- * @Xpipe
- * Xpipe example, demonstrate how to pipe stream events
+ * @xpipe
+ * xpipe example, demonstrate how to pipe stream events
  */
 module.exports = () => {
-    const notify = require('../libs/notifications')()
-    const XPromise = require('../xpromise/x.promise')(notify)
+    const notify = require('notifyx')
+    const XPipe = require('../xpromise/x.pipe')(notify)
     const debug = true
     const opts = { showRejects: true, allowPipe: true }
-    const Xpipe = new XPromise(null, opts, debug)
+    const xpipe = new XPipe(null, opts, debug)
 
     const jobID1 = 'job01'
     const jobID2 = 'job02'
@@ -21,17 +21,17 @@ module.exports = () => {
         fetch.on('data', function(chunk) {
             // process.stdout.write(chunk + '\n')
             // NOTE initiale the pipe with data and desired resolution you want to pipe onwards
-            Xpipe.initPipe(id, JSON.parse(chunk), resolution)
+            xpipe.initPipe(id, JSON.parse(chunk), resolution)
         })
 
         // NOTE pipe will wait for callback from `initPipe` and forward stream to next `pipe`
-        return Xpipe.pipe((d, err) => {
+        return xpipe.pipe((d, err) => {
             notify.ulog({ event: '[pipe] 1', data: d })
             const data = {
                 location: d.YourFuckingLocation || null
             }
             data.pipeIndex = 1
-            data.jobID = Xpipe.lastUID
+            data.jobID = xpipe.lastUID
             return data
         }, id)
     }
@@ -80,12 +80,12 @@ module.exports = () => {
     */
     // const fetchErr = (id, resolution = false) => {
     //     setTimeout(() => {
-    //         Xpipe.initPipe(id, { error: 500, message: 'handling error status' }, resolution)
+    //         xpipe.initPipe(id, { error: 500, message: 'handling error status' }, resolution)
     //     }, 2000)
-    //     return Xpipe.pipe((d, error) => {
+    //     return xpipe.pipe((d, error) => {
     //         if (error) {
     //             error.pipeIndex = 1
-    //             error.jobID = Xpipe.lastUID
+    //             error.jobID = xpipe.lastUID
     //             notify.ulog({ event: '[pipe] 1', error })
     //         }
     //         return error

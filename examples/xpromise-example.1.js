@@ -4,7 +4,7 @@
  * simulate bank transaction and process
  */
 module.exports = () => {
-    const notify = require('../libs/notifications')()
+    const notify = require('notifyx')
     const { merge } = require('lodash')
     var Xpromise = require('../xpromise/x.promise')()
     const debug = true

@@ -1,25 +1,17 @@
 
 /**
- * ### XPipe
+ * @XPipe
  *  extention of `XPromise`, to allow piping/ compumed jobs as streams, in async environment
  */
-module.exports = (notify, Xpromise) => {
+module.exports = (Xpromise, notify) => {
     if (!notify) notify = require('notifyx')
-    const { isArray, isString, isNumber, isEmpty, isObject, isFunction, reduce, cloneDeep, sum } = require('lodash')
-    var xpromiseSet = true
-    if (!Xpromise) {
-        Xpromise = function() { } // allow use if xpromise not set
-        xpromiseSet = false
-    }
+    const { isArray, isEmpty, isObject, isFunction, reduce, cloneDeep, sum } = require('lodash')
+
+    if (!Xpromise) Xpromise = function() { } // allow use if xpromise not set
 
     class XPipe extends Xpromise {
-        constructor(promiseUID = null, opts = {}, debug) {
+        constructor(promiseUID, opts, debug) {
             super(promiseUID, opts, debug)
-
-            this.showRejects = opts.showRejects || null // print reject messages to the console
-            this.allowPipe = opts.allowPipe || null //  you can pipe thru each promise after it was consumed with `asPromise` or `onReady`
-            this.debug = debug
-
             // this.pipeWhenReady = opts.pipeWhenReady
             // this.allowPipe // when from Xpromise, Xpipe will be set after `asPromise` or  `onReady` call is resolved
             this.pipeCBList = {}
@@ -31,56 +23,6 @@ module.exports = (notify, Xpromise) => {
             this.pipeUIDindex = {}
             this.pipePassFail = {} // alter resolution of each pipe, to either resolve or reject
             this.pipeMarkDel = {/** uid:boolean */}// add mark to delete pipe
-        }
-
-        /**
-         * ## testUID
-         * - extend this tool from xpromise if not available use own
-         * @param {*} UID required
-         */
-        testUID(UID) {
-            if (!xpromiseSet) {
-                if (!UID) throw ('UID NOT PROVIDED')
-                if (!isString(UID)) throw ('PROVIDED UID MUST BE STRING')
-                if (UID.split(' ').length > 1) throw ('UID MUST HAVE NO SPACES')
-                if (isNumber(UID)) throw ('UID CANNOT BE A NUMBER')
-                if (UID.length < 2) throw ('UID MUST BE LONGER THEN 1 CHARS')
-                return true
-            } else {
-                return super.testUID(UID)
-            }
-        }
-
-        /**
-         * ## _getLastRef
-         * - extend this tool from xpromise if not available use own
-         * @param {*} uid required
-         */
-        _getLastRef(uid) {
-            if (!xpromiseSet) {
-                if (uid) this.lastUID = uid
-                if (!uid && this.lastUID) uid = this.lastUID
-                this.testUID(uid)
-                return uid || null
-            } else {
-                return super._getLastRef(uid)
-            }
-        }
-
-        /**
-         * ## isPromise
-         * check if we are dealing with promise
-         * - extend this tool from xpromise if not available use own
-         */
-        isPromise(d) {
-            if (!xpromiseSet) {
-                if (!d) return false
-                var is_promise = (d || {}).__proto__
-                if (typeof (is_promise || {}).then === 'function') return true
-                return false
-            } else {
-                return super.isPromise(d)
-            }
         }
 
         /**
@@ -371,8 +313,6 @@ module.exports = (notify, Xpromise) => {
                 const totalJobs = Object.keys(this._pipeList).length
                 if (this.testDeleted() === totalJobs) {
                     if (this.debug) notify.ulog(`[endPipe] all pipe reference for job #${uid} deleted`)
-                } else {
-                    if (this.debug) notify.ulog(`[endPipe] all/most pipe reference for job #${uid} deleted`)
                 }
             }
         }

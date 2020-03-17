@@ -3,7 +3,7 @@
  * @XPromise
  */
 module.exports = (notify) => {
-    if (!notify) notify = require('../libs/notifications')()
+    if (!notify) notify = require('notifyx')
     const { isEmpty, isArray, times, isFunction, indexOf } = require('lodash')
 
     const XPromiseBase = require('./x.promise.base')(notify)
@@ -553,6 +553,6 @@ module.exports = (notify) => {
         }
     }
 
-    const XpromiseExtended = require('./x.pipe')(XPromise, notify)
+    const XpromiseExtended = require('./x.pipe')(notify, XPromise)
     return XpromiseExtended
 }

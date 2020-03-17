@@ -1,14 +1,14 @@
 
 /**
- * @Xpipe
- * Xpipe example, demonstrate how to pipe stream events
+ * @xpipe
+ * xpipe example, demonstrate how to pipe stream events
  */
 module.exports = () => {
-    const notify = require('../libs/notifications')()
-    const XPromise = require('../xpromise/x.promise')(notify)
+    const notify = require('notifyx')
+    const XPipe = require('../xpromise/x.pipe')(notify)
     const debug = true
     const opts = { showRejects: true, allowPipe: true }
-    const Xpipe = new XPromise(null, opts, debug)
+    const xpipe = new XPipe(null, opts, debug)
 
     const jobID = 'job01'
 
@@ -18,17 +18,17 @@ module.exports = () => {
         fetch.on('data', function(chunk) {
             // process.stdout.write(chunk + '\n')
             var resolve = true
-            Xpipe.initPipe(jobID, JSON.parse(chunk), resolve)
+            xpipe.initPipe(jobID, JSON.parse(chunk), resolve)
         })
     })()
 
-    Xpipe.pipe(d => {
+    xpipe.pipe(d => {
         notify.ulog({ event: '[pipe] 1', data: d })
         const data = {
             location: d.YourFuckingLocation || null
         }
         data.pipeIndex = 1
-        data.jobID = Xpipe.lastUID
+        data.jobID = xpipe.lastUID
         return data
     }, jobID)
         .pipe(d => {
@@ -43,7 +43,7 @@ module.exports = () => {
         })
 
     setTimeout(() => {
-        Xpipe.pipe(d => {
+        xpipe.pipe(d => {
             d.pipeIndex++
             notify.ulog({ event: '[pipe] 4', data: d })
             return d
@@ -51,7 +51,7 @@ module.exports = () => {
     }, 5000)
 
     setTimeout(() => {
-        Xpipe.pipe(d => {
+        xpipe.pipe(d => {
             d.pipeIndex++
             notify.ulog({ event: '[pipe] 5', data: d })
             return d
