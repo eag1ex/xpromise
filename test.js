@@ -1,1 +1,1 @@
-console.log('what is xpromise', require('./index').XPromise)
+console.log('what is XPipe', require('./index').XPipe)
