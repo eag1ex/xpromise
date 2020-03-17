@@ -3,8 +3,8 @@
  * ### XPipe
  *  extention of `XPromise`, to allow piping/ compumed jobs as streams, in async environment
  */
-module.exports = (notify, Xpromise) => {
-    if (!notify) notify = require('notifyx')
+module.exports = (Xpromise = null) => {
+    const notify = require('notifyx')
     const { isArray, isString, isNumber, isEmpty, isObject, isFunction, reduce, cloneDeep, sum } = require('lodash')
     var xpromiseSet = true
     if (!Xpromise) {

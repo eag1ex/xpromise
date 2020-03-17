@@ -1,6 +1,6 @@
 // simple pipe example
 const notify = require('notifyx')
-const XPipe = require('../xpromise/x.pipe')(notify)
+const XPipe = require('../xpromise/x.pipe')()
 const debug = true
 const opts = { allowPipe: true } //
 const x = new XPipe(null, opts, debug)

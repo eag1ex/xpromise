@@ -1,5 +1,5 @@
 /**
- * examples available at `examples.js`
+ * examples available at `./examples/..`
  */
 exports.XPromise = require('../xpromise/x.promise')()
 exports.XPipe = require('../xpromise/x.pipe')()
