@@ -4,6 +4,7 @@
   "description": "Smart Javascript Promise Manager with piping support",
   "main": "index.js",
   "scripts": {
+    "example":"node ./examples/index",
     "start": "node ./index"
   },
   "author": "",
