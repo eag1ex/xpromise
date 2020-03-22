@@ -11,7 +11,7 @@
     - Manage async functionality with `.pipe(d=>).pipe(d=>)`, allows piping streamed events
 
 #### What is XPipe ?
-* Pipe `.pipe((d)=>).pipe(...)` is an event that returns a promise as callback. Every pipe call creates new promise to wait for next pipe call. Within each `pipe` callback you can return new data for the next pipe event. `.pipe(()=>,uid).pipe()` You can also return pipe as promise ` prm.pipe(null,uid).then`, but cannot return new data for the next pipe, until you change it back to callback method.
+* Pipe `.pipe((d)=>).pipe(...)` is an event that returns a promise as callback. Every pipe call creates new promise to wait for next pipe call. Within each `pipe` callback you can return new data for the next pipe. `.pipe(()=>,uid).pipe()` You can also return pipe as promise ` prm.pipe(null,uid).then`, but cannot return new data for the next, until you change it back to callback method.
 
 ###### Why use it?
 - Your application is promise, async driven
@@ -89,7 +89,7 @@ when chaining
      * to create relational operation, make sure job number is the same with new sufix, `--{number}`
      */
     var uid1 = '1233535' // base operation
-    var uid1a = '1233535--1' // relational operation (note same number with sufix)
+    var uid1a = '1233535--1' // relational operation (note same number with new sufix)
     var uid1b = '1233535--2'
 
     const broker = (id) => {
