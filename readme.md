@@ -4,15 +4,14 @@
 
 
 #### Description
-Smart Javascript Promise Manager with stream/event pipe support, similar to Q/defer. Uses prototype getter/setter with dynamic callbacks to set resolve states, (no setIntervals or timers!).
-* Manage and control all `resolve()` and `reject()` promise states.
-* Group promises `relative` to main `job` and resolving all as part of one.
-* Easy to maintain all promises in one framework
-* Manage async functionality with `.pipe(d=>).pipe(d=>)`, allows piping streamed events
+* Smart Javascript Promise Manager with stream/event pipe support, similar to Q/defer. Uses getter/setter with dynamic callbacks to set resolve states, (no setIntervals or timers!):
+    - Manage and control all `resolve()` and `reject()` promise states.
+    - Group promises `relative` to main `job` and resolving all as part of one.
+    - Easy to maintain all promises in one framework
+    - Manage async functionality with `.pipe(d=>).pipe(d=>)`, allows piping streamed events
 
 #### What is XPipe ?
-Pipe `.pipe((d)=>).pipe(...)` is an event that returns a promise as a callback. Every pipe call creates new defer promise to wait for next pipe call. Within each `pipe` callback you can return new data for the next pipe event. `.pipe(null,uid).then(d=>), prm.pipe().then` You can also return pipe as promise, but cannot return new data for the next pipe, until you change it back to callback method, 
-example: `.pipe(null,uid).then(d=>), prm.pipe((d)=>).pipe(...`
+* Pipe `.pipe((d)=>).pipe(...)` is an event that returns a promise as callback. Every pipe call creates new promise to wait for next pipe call. Within each `pipe` callback you can return new data for the next pipe event. `.pipe(()=>,uid).pipe()` You can also return pipe as promise ` prm.pipe(null,uid).then`, but cannot return new data for the next pipe, until you change it back to callback method.
 
 ###### Why use it?
 - Your application is promise, async driven
