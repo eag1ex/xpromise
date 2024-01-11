@@ -74,7 +74,7 @@ when chaining
 
 
 
-```
+```js
   const { merge } = require('lodash')
     var Xpromise = require('../xpromise/x.promise')()
     const debug = true
