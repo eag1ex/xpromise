@@ -9,6 +9,15 @@ This project is no longer maintained (because Im busy building new exciting thin
 If you are interested in my work and have questions about this project, please drop me a comment, or email me, thanks!
 
 
+### Playground on codesandbox
+you can play with it directly
+[x-utils-es on codesandbox ](https://codesandbox.io/p/github/eag1ex/xpromise/master)
+
+**Preview**
+
+```sh
+npm run example
+```
 
 #### Description
 * Smart Javascript Promise Manager with stream/event pipe support, similar to Q/defer. Uses getter/setter with dynamic callbacks to set resolve states, (no setIntervals or timers!):
@@ -16,6 +25,9 @@ If you are interested in my work and have questions about this project, please d
     - Group promises `relative` to main `job` and resolving all as part of one.
     - Easy to maintain all promises in one framework
     - Manage async functionality with `.pipe(d=>).pipe(d=>)`, allows piping streamed events
+
+
+
 
 
 #### What is XPipe ?
