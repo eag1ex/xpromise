@@ -3,12 +3,20 @@
 * License: `CC BY` 
 
 
+#### Depreciation notice
+This project is no longer maintained (because Im busy building new exciting things!). If you find something is not working, please release date of the project, and adjust to corresponding Node.js (even) version, and then it should work.
+
+If you are interested in my work and have questions about this project, please drop me a comment, or email me, thanks!
+
+
+
 #### Description
 * Smart Javascript Promise Manager with stream/event pipe support, similar to Q/defer. Uses getter/setter with dynamic callbacks to set resolve states, (no setIntervals or timers!):
     - Manage and control all `resolve()` and `reject()` promise states.
     - Group promises `relative` to main `job` and resolving all as part of one.
     - Easy to maintain all promises in one framework
     - Manage async functionality with `.pipe(d=>).pipe(d=>)`, allows piping streamed events
+
 
 #### What is XPipe ?
 * Pipe `.pipe((d)=>).pipe(...)` is an event that returns a promise as callback. Every pipe call creates new promise to wait for next pipe call. Within each `pipe` callback you can return new data for the next pipe. `.pipe(()=>,uid).pipe()` You can also return pipe as promise ` prm.pipe(null,uid).then`, but cannot return new data for the next, until you change it back to callback method.
@@ -20,7 +28,7 @@
 ##### Stack
  - Lodash, ES6, Javascript, Node.js, ES6 Promise
 
-#### Instalation 
+#### Installation  
 * `$/ npm install`
 
 ##### Usage/Examples
@@ -37,7 +45,7 @@
 
 * `resolve(uid, data)`: will set resolve() with `onReady` or `asPromise().then(..)`, `data` is optional,  when not set will return `true`
 
-* `reject(uid, data)`: same as `resolve` but return as rejecte(), `data` is optional, when not set will return `false`
+* `reject(uid, data)`: same as `resolve` but return as reject(), `data` is optional, when not set will return `false`
 
 * `get(cb=>, [uid])` : you want to resolve early, update and to return final data to `onReady` or `asPromise`
     - `[uid] single`: callback data provides single item, do some logic calculation and return it so its data can be resolved.,  `./examples/xpromise-example.1.js`
@@ -47,7 +55,7 @@
 
 * `ref(uid)` : will set uid/ref and continue on path of that job
 
-* `onReady(done=>,err=>,uid)` return data as promise from callback. Additionaly when using pipe `opts.allowPipe=true` you can further munipupate data, checkout examples at: `./examples/xpromise-example.1.js`
+* `onReady(done=>,err=>,uid)` return data as promise from callback. Additionally when using pipe `opts.allowPipe=true` you can further manipulate data, checkout examples at: `./examples/xpromise-example.1.js`
     
 * `asPromise(uid)`: will return as promise: asPromise().then(d=>...)
 
@@ -63,7 +71,7 @@
     - examples available at `$/ node ./examples/pipes-simple.js`
 
 * `pipe(cb=>,uid)` :  Refers to extended XPipe class refer to `x.pipe.js`
-    - pipe/stream jobs beond resolution (job consumption), very usefull when working in async environment
+    - pipe/stream jobs beyond resolution (job consumption), very useful when working in async environment
     - every pipe if using without XPromise need to be initiated first with: `initPipe`, take a look at examples in `./examples/pipes..`
 
 * `pass(uid)` : specify before `.pipe()` if you want it to pass or fail, regardless, uid not needed 
@@ -198,5 +206,5 @@ when chaining
  * Have questions, or would like to submit feedback, `contact me at: https://eaglex.net/app/contact?product=XPromise`
 
 ##### LICENSE
-* LICENCE: CC BY
+* LICENSE: CC BY
 * SOURCE: https://creativecommons.org/licenses/by/4.0/legalcode

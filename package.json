@@ -4,18 +4,23 @@
   "description": "Smart Javascript Promise Manager with piping support",
   "main": "index.js",
   "scripts": {
-    "example":"node ./examples/index",
+    "example": "node ./examples/index",
     "start": "node ./index"
   },
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "notifyx": "git+ssh://git@bitbucket.org:eag1ex/notifyx.git",
+    "@types/node": "^20.11.0",
     "bash-color": "0.0.4",
     "eslint": "^6.7.2",
     "fetch": "^1.1.0",
     "lodash": "^4.17.15",
+    "notifyx": "git+ssh://git@bitbucket.org:eag1ex/notifyx.git",
     "standard": "^14.3.1",
     "util": "^0.12.1"
+  },
+  "engineStrict": true,
+  "engines": {
+    "node": "14"
   }
 }
